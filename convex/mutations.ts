@@ -1,5 +1,5 @@
 import { v } from 'convex/values'
-import { internalMutation } from './_generated/server'
+import { internalMutation, mutation } from './_generated/server'
 import { Id } from './_generated/dataModel'
 
 // Helper function to extract domain from URL
@@ -192,6 +192,58 @@ export const saveScrapedPage = internalMutation({
     })
 
     return pageId
+  },
+})
+
+// Mutation to create a video for a domain (internal)
+export const createVideo = internalMutation({
+  args: {
+    domainId: v.id("domains"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+  },
+  returns: v.id("videos"),
+  handler: async (ctx, args) => {
+    // For now, hardcode a fixed video URL
+    const videoUrl = "https://example.com/videos/sample-video.mp4"
+
+    const videoId = await ctx.db.insert("videos", {
+      domainId: args.domainId,
+      videoUrl,
+      title: args.title,
+      description: args.description,
+      status: "completed" as const,
+      createdAt: Date.now(),
+      completedAt: Date.now(),
+    })
+
+    return videoId
+  },
+})
+
+// Public mutation to create a video for a domain
+export const createVideoForDomain = mutation({
+  args: {
+    domainId: v.id("domains"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+  },
+  returns: v.id("videos"),
+  handler: async (ctx, args) => {
+    // For now, hardcode a fixed video URL
+    const videoUrl = "https://example.com/videos/sample-video.mp4"
+
+    const videoId = await ctx.db.insert("videos", {
+      domainId: args.domainId,
+      videoUrl,
+      title: args.title,
+      description: args.description,
+      status: "completed" as const,
+      createdAt: Date.now(),
+      completedAt: Date.now(),
+    })
+
+    return videoId
   },
 })
 

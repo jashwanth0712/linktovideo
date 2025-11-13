@@ -19,6 +19,7 @@ export const getDomain = query({
   returns: v.union(
     v.object({
       _id: v.id("domains"),
+      _creationTime: v.number(),
       domain: v.string(),
       baseUrl: v.string(),
       scrapedAt: v.number(),
@@ -44,6 +45,7 @@ export const getBranding = query({
   returns: v.union(
     v.object({
       _id: v.id("branding"),
+      _creationTime: v.number(),
       domainId: v.id("domains"),
       brandingData: v.any(),
       metadata: v.optional(
@@ -75,6 +77,7 @@ export const getUrlMaps = query({
   returns: v.array(
     v.object({
       _id: v.id("urlMaps"),
+      _creationTime: v.number(),
       domainId: v.id("domains"),
       url: v.string(),
       title: v.optional(v.string()),
@@ -100,6 +103,7 @@ export const getScrapedPages = query({
   returns: v.array(
     v.object({
       _id: v.id("scrapedPages"),
+      _creationTime: v.number(),
       domainId: v.id("domains"),
       url: v.string(),
       markdown: v.string(),
@@ -134,6 +138,89 @@ export const getScrapedPages = query({
       .collect()
 
     return results
+  },
+})
+
+// Query to get all videos with domain information
+export const getAllVideos = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("videos"),
+      _creationTime: v.number(),
+      domainId: v.id("domains"),
+      videoUrl: v.string(),
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      status: v.union(
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed"),
+      ),
+      createdAt: v.number(),
+      completedAt: v.optional(v.number()),
+      domain: v.optional(
+        v.object({
+          _id: v.id("domains"),
+          _creationTime: v.number(),
+          domain: v.string(),
+          baseUrl: v.string(),
+          scrapedAt: v.number(),
+        }),
+      ),
+    }),
+  ),
+  handler: async (ctx) => {
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_created_at")
+      .order("desc")
+      .collect()
+
+    // Enrich with domain information
+    const videosWithDomain = await Promise.all(
+      videos.map(async (video) => {
+        const domain = await ctx.db.get(video.domainId)
+        return {
+          ...video,
+          domain: domain || undefined,
+        }
+      }),
+    )
+
+    return videosWithDomain
+  },
+})
+
+// Query to get videos for a specific domain
+export const getVideosByDomain = query({
+  args: {
+    domainId: v.id("domains"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("videos"),
+      _creationTime: v.number(),
+      domainId: v.id("domains"),
+      videoUrl: v.string(),
+      title: v.optional(v.string()),
+      description: v.optional(v.string()),
+      status: v.union(
+        v.literal("processing"),
+        v.literal("completed"),
+        v.literal("failed"),
+      ),
+      createdAt: v.number(),
+      completedAt: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const videos = await ctx.db
+      .query("videos")
+      .withIndex("by_domain", (q) => q.eq("domainId", args.domainId))
+      .collect()
+
+    return videos
   },
 })
 

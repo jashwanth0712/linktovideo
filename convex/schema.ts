@@ -74,4 +74,22 @@ export default defineSchema({
     .index("by_domain", ["domainId"])
     .index("by_url", ["url"])
     .index("by_scraped_at", ["scrapedAt"]),
+
+  // Table to store generated videos for each domain
+  videos: defineTable({
+    domainId: v.id("domains"), // Reference to the domain
+    videoUrl: v.string(), // The generated video URL
+    title: v.optional(v.string()), // Video title (from domain metadata)
+    description: v.optional(v.string()), // Video description
+    status: v.union(
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ), // Video generation status
+    createdAt: v.number(), // Timestamp when video was created
+    completedAt: v.optional(v.number()), // Timestamp when video generation completed
+  })
+    .index("by_domain", ["domainId"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 });
