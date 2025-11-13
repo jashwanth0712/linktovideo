@@ -3,6 +3,10 @@
 import { v } from 'convex/values'
 import { action } from './_generated/server'
 import { internal } from './_generated/api'
+import { Agent } from '@convex-dev/agent'
+import { components } from './_generated/api'
+import { z } from 'zod'
+import { openai } from '@ai-sdk/openai'
 
 // Write your Convex functions in any file inside this directory (`convex`).
 // See https://docs.convex.dev/functions for more.
@@ -259,6 +263,84 @@ export const extractWebsiteData = action({
     }
 
     return results
+  },
+})
+
+// AI analysis action - analyze extracted content and extract offerings
+export const analyzeOfferings = action({
+  args: {
+    domainId: v.id("domains"),
+    markdownContent: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      type: v.union(v.literal("product"), v.literal("service")),
+      name: v.string(),
+      description: v.string(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    try {
+      // Initialize the agent
+      const agent = new Agent(components.agent, {
+        name: "offerings-analyzer",
+        languageModel: openai("gpt-4o-mini"),
+        instructions: "You are an AI assistant that analyzes website content and extracts offerings (products or services).",
+      })
+
+      // Create a thread for this analysis
+      const { thread } = await agent.createThread(ctx, {
+        title: "Analyze Offerings",
+        summary: "Extract products and services from website content",
+      })
+
+      const prompt = `
+Analyze the following website content and extract all offerings (products or services).
+
+Website Content:
+${args.markdownContent.substring(0, 50000)}
+`
+
+      // Define the schema using zod
+      const offeringSchema = z.object({
+        offerings: z.array(
+          z.object({
+            type: z.enum(["product", "service"]),
+            name: z.string(),
+            description: z.string(),
+          })
+        ),
+      })
+
+      // Use thread.generateObject with zod schema
+      const result = await thread.generateObject({
+        prompt,
+        schema: offeringSchema,
+      })
+
+      const offerings = result.object.offerings as {
+        type: "product" | "service"
+        name: string
+        description: string
+      }[]
+
+      // Save to DB
+      for (const offering of offerings) {
+        await ctx.runMutation(internal.mutations.saveOffering, {
+          domainId: args.domainId,
+          type: offering.type,
+          name: offering.name,
+          description: offering.description,
+        })
+      }
+
+      return offerings
+    } catch (error) {
+      console.error("AI analysis error:", error)
+      throw new Error(
+        `Failed to analyze offerings: ${error instanceof Error ? error.message : "Unknown error"}`
+      )
+    }
   },
 })
 

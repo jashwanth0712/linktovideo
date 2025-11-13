@@ -247,3 +247,25 @@ export const createVideoForDomain = mutation({
   },
 })
 
+// Mutation to save an offering
+export const saveOffering = internalMutation({
+  args: {
+    domainId: v.id("domains"),
+    type: v.union(v.literal("product"), v.literal("service")),
+    name: v.string(),
+    description: v.string(),
+  },
+  returns: v.id("offerings"),
+  handler: async (ctx, args) => {
+    const offeringId = await ctx.db.insert("offerings", {
+      domainId: args.domainId,
+      type: args.type,
+      name: args.name,
+      description: args.description,
+      analyzedAt: Date.now(),
+    })
+
+    return offeringId
+  },
+})
+

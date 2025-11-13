@@ -51,3 +51,9 @@ export type BrandingData = {
   }
 }
 
+export type Offering = {
+  type: 'product' | 'service'
+  name: string
+  description: string
+}
+

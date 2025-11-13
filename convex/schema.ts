@@ -92,4 +92,16 @@ export default defineSchema({
     .index("by_domain", ["domainId"])
     .index("by_status", ["status"])
     .index("by_created_at", ["createdAt"]),
+
+  // Table to store analyzed offerings (products/services) for each domain
+  offerings: defineTable({
+    domainId: v.id("domains"), // Reference to the domain
+    type: v.union(v.literal("product"), v.literal("service")), // Type of offering
+    name: v.string(), // Name of the product/service
+    description: v.string(), // Description of the offering
+    analyzedAt: v.number(), // Timestamp when offering was analyzed
+  })
+    .index("by_domain", ["domainId"])
+    .index("by_type", ["type"])
+    .index("by_analyzed_at", ["analyzedAt"]),
 });

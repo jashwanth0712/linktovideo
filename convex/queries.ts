@@ -224,3 +224,29 @@ export const getVideosByDomain = query({
   },
 })
 
+// Query to get offerings for a domain
+export const getOfferings = query({
+  args: {
+    domainId: v.id("domains"),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id("offerings"),
+      _creationTime: v.number(),
+      domainId: v.id("domains"),
+      type: v.union(v.literal("product"), v.literal("service")),
+      name: v.string(),
+      description: v.string(),
+      analyzedAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const offerings = await ctx.db
+      .query("offerings")
+      .withIndex("by_domain", (q) => q.eq("domainId", args.domainId))
+      .collect()
+
+    return offerings
+  },
+})
+

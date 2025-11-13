@@ -1,4 +1,4 @@
-type Step = 'branding' | 'map' | 'extract'
+type Step = 'branding' | 'map' | 'extract' | 'analyze'
 
 type StepIndicatorProps = {
   currentStep: Step
@@ -25,13 +25,22 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
         <span className="font-medium">Map</span>
       </div>
       <div className="h-px w-8 bg-border" />
-      <div className={`flex items-center gap-2 ${currentStep === 'extract' ? 'text-foreground' : 'text-muted-foreground'}`}>
+      <div className={`flex items-center gap-2 ${currentStep === 'extract' || currentStep === 'analyze' ? 'text-foreground' : 'text-muted-foreground'}`}>
         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-          currentStep === 'extract' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+          currentStep === 'extract' || currentStep === 'analyze' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
         }`}>
           3
         </div>
         <span className="font-medium">Extract</span>
+      </div>
+      <div className="h-px w-8 bg-border" />
+      <div className={`flex items-center gap-2 ${currentStep === 'analyze' ? 'text-foreground' : 'text-muted-foreground'}`}>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+          currentStep === 'analyze' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+        }`}>
+          4
+        </div>
+        <span className="font-medium">Analyze</span>
       </div>
     </div>
   )

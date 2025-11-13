@@ -1,14 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAction, useMutation, useQuery } from 'convex/react'
 import { api } from '../../convex/_generated/api'
-import type { BrandingData, Link, ExtractResult } from '../components/firecrawl/types'
+import type { BrandingData, Link, ExtractResult, Offering } from '../components/firecrawl/types'
 import { StepIndicator } from '../components/firecrawl/StepIndicator'
 import { ErrorAlert } from '../components/firecrawl/ErrorAlert'
 import { BrandingForm } from '../components/firecrawl/BrandingForm'
 import { BrandingResults } from '../components/firecrawl/BrandingResults'
 import { MapStep } from '../components/firecrawl/MapStep'
 import { ExtractResults } from '../components/firecrawl/ExtractResults'
+import { AnalyzeOfferings } from '../components/firecrawl/AnalyzeOfferings'
 
 export const Route = createFileRoute('/firecrawl')({
   component: Firecrawl,
@@ -16,21 +17,27 @@ export const Route = createFileRoute('/firecrawl')({
 
 function Firecrawl() {
   const [url, setUrl] = useState('')
-  const [step, setStep] = useState<'branding' | 'map' | 'extract'>('branding')
+  const [step, setStep] = useState<'branding' | 'map' | 'extract' | 'analyze'>('branding')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [brandingData, setBrandingData] = useState<BrandingData | null>(null)
   const [mappedLinks, setMappedLinks] = useState<Link[]>([])
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [extractResults, setExtractResults] = useState<ExtractResult[]>([])
+  const [offerings, setOfferings] = useState<Offering[]>([])
 
   const scrapeBranding = useAction(api.myFunctions.scrapeBranding)
   const mapWebsite = useAction(api.myFunctions.mapWebsite)
   const extractData = useAction(api.myFunctions.extractWebsiteData)
+  const analyzeOfferings = useAction(api.myFunctions.analyzeOfferings)
   const createVideo = useMutation(api.mutations.createVideoForDomain)
   const domain = useQuery(
     api.queries.getDomain,
     url ? { url } : 'skip',
+  )
+  const domainOfferings = useQuery(
+    api.queries.getOfferings,
+    domain?._id ? { domainId: domain._id } : 'skip',
   )
 
   const handleBrandingSubmit = async (e: React.FormEvent) => {
@@ -126,9 +133,53 @@ function Firecrawl() {
     }
   }
 
+  const handleAnalyze = async () => {
+    if (!domain?._id || extractResults.length === 0) {
+      setError('No content to analyze')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setOfferings([])
+
+    try {
+      // Combine all markdown content
+      const combinedMarkdown = extractResults
+        .filter((r) => r.markdown)
+        .map((r) => r.markdown)
+        .join('\n\n---\n\n')
+
+      if (!combinedMarkdown.trim()) {
+        setError('No markdown content available to analyze')
+        setLoading(false)
+        return
+      }
+
+      const analyzedOfferings = await analyzeOfferings({
+        domainId: domain._id,
+        markdownContent: combinedMarkdown,
+      })
+
+      setOfferings(analyzedOfferings)
+      setStep('analyze')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to analyze offerings')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleBack = () => {
-    setStep('map')
-    setExtractResults([])
+    if (step === 'analyze') {
+      setStep('extract')
+      setOfferings([])
+    } else if (step === 'extract') {
+      setStep('map')
+      setExtractResults([])
+    } else {
+      setStep('branding')
+    }
   }
 
   const handleReset = () => {
@@ -138,8 +189,22 @@ function Firecrawl() {
     setMappedLinks([])
     setSelectedUrls(new Set())
     setExtractResults([])
+    setOfferings([])
     setError(null)
   }
+
+  // Update offerings from query when available
+  useEffect(() => {
+    if (domainOfferings && domainOfferings.length > 0) {
+      setOfferings(
+        domainOfferings.map((o) => ({
+          type: o.type,
+          name: o.name,
+          description: o.description,
+        })),
+      )
+    }
+  }, [domainOfferings])
 
   return (
     <div className="min-h-screen bg-background">
@@ -154,7 +219,9 @@ function Firecrawl() {
               ? 'Extract branding information and analyze website design'
               : step === 'map'
                 ? 'Select pages to extract content from'
-                : 'Review extracted markdown content'}
+                : step === 'extract'
+                  ? 'Review extracted markdown content'
+                  : 'Analyze offerings and services'}
           </p>
         </div>
 
@@ -197,8 +264,41 @@ function Firecrawl() {
 
         {/* Extract Step */}
         {step === 'extract' && (
-          <ExtractResults
-            results={extractResults}
+          <div className="space-y-6">
+            <ExtractResults
+              results={extractResults}
+              onBack={handleBack}
+              onReset={handleReset}
+            />
+            {extractResults.length > 0 && extractResults.some((r) => r.markdown) && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleAnalyze}
+                  disabled={loading || !domain?._id}
+                  className="rounded-md bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      Analyzing...
+                    </span>
+                  ) : (
+                    'Analyze Offerings'
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Analyze Step */}
+        {step === 'analyze' && (
+          <AnalyzeOfferings
+            offerings={offerings}
+            loading={loading}
             onBack={handleBack}
             onReset={handleReset}
           />
