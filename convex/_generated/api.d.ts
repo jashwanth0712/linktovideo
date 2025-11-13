@@ -8,9 +8,15 @@
  * @module
  */
 
+<<<<<<< HEAD
 import type * as mutations from "../mutations.js";
 import type * as myFunctions from "../myFunctions.js";
 import type * as queries from "../queries.js";
+=======
+import type * as http from "../http.js";
+import type * as myFunctions from "../myFunctions.js";
+import type * as scrape from "../scrape.js";
+>>>>>>> 157c912d87055510f9bc2a1332b2aa9d7baab5c8
 
 import type {
   ApiFromModules,
@@ -19,9 +25,15 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+<<<<<<< HEAD
   mutations: typeof mutations;
   myFunctions: typeof myFunctions;
   queries: typeof queries;
+=======
+  http: typeof http;
+  myFunctions: typeof myFunctions;
+  scrape: typeof scrape;
+>>>>>>> 157c912d87055510f9bc2a1332b2aa9d7baab5c8
 }>;
 
 /**

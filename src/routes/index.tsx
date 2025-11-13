@@ -1,97 +1,55 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { useMutation } from 'convex/react'
-import { useSuspenseQuery } from '@tanstack/react-query'
-import { convexQuery } from '@convex-dev/react-query'
-import { api } from '../../convex/_generated/api'
+import { createFileRoute } from '@tanstack/react-router'
+import { useState } from "react"
+import { MasonryGallery } from "@/components/masonry-gallery"
+import { ProjectModal } from "@/components/project-modal"
+import { MenuIcon } from "@/lib/icons"
 
 export const Route = createFileRoute('/')({
   component: Home,
 })
 
 function Home() {
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [projects, setProjects] = useState<any[]>([])
 
+  const handleAddProject = (project: any) => {
+    setProjects([...projects, project])
+    setIsModalOpen(false)
+  }
 
   return (
-    <main className="p-8 flex flex-col gap-16">
-      <h1 className="text-4xl font-bold text-center">
-        Convex + Tanstack Start
-      </h1>
-      <div className="flex flex-col gap-8 max-w-lg mx-auto">
-        <p>
-          Edit{' '}
-          <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
-            convex/myFunctions.ts
-          </code>{' '}
-          to change your backend
-        </p>
-        <p>
-          Edit{' '}
-          <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
-            src/routes/index.tsx
-          </code>{' '}
-          to change your frontend
-        </p>
-        <p>
-          Open{' '}
-          <Link
-            to="/anotherPage"
-            className="text-blue-600 underline hover:no-underline"
-          >
-            another page
-          </Link>{' '}
-          to send an action.
-        </p>
-        <div className="flex flex-col">
-          <p className="text-lg font-bold">Useful resources:</p>
-          <div className="flex gap-2">
-            <div className="flex flex-col gap-2 w-1/2">
-              <ResourceCard
-                title="Convex docs"
-                description="Read comprehensive documentation for all Convex features."
-                href="https://docs.convex.dev/home"
-              />
-              <ResourceCard
-                title="Stack articles"
-                description="Learn about best practices, use cases, and more from a growing
-            collection of articles, videos, and walkthroughs."
-                href="https://www.typescriptlang.org/docs/handbook/2/basic-types.html"
-              />
-            </div>
-            <div className="flex flex-col gap-2 w-1/2">
-              <ResourceCard
-                title="Templates"
-                description="Browse our collection of templates to get started quickly."
-                href="https://www.convex.dev/templates"
-              />
-              <ResourceCard
-                title="Discord"
-                description="Join our developer community to ask questions, trade tips & tricks,
-            and show off your projects."
-                href="https://www.convex.dev/community"
-              />
-            </div>
+    <main className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center justify-between px-6 py-4">
+          <h1 className="text-2xl font-bold text-foreground">Masonry</h1>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="rounded-full bg-blue-500 px-6 py-2 text-white font-medium hover:bg-blue-600 transition-colors"
+            >
+              Start project
+            </button>
+            <button className="p-2 hover:bg-muted rounded-lg transition-colors">
+              <MenuIcon size={24} className="text-foreground" />
+            </button>
           </div>
         </div>
-      </div>
-    </main>
-  )
-}
+      </header>
 
-function ResourceCard({
-  title,
-  description,
-  href,
-}: {
-  title: string
-  description: string
-  href: string
-}) {
-  return (
-    <div className="flex flex-col gap-2 bg-slate-200 dark:bg-slate-800 p-4 rounded-md h-28 overflow-auto">
-      <a href={href} className="text-sm underline hover:no-underline">
-        {title}
-      </a>
-      <p className="text-xs">{description}</p>
-    </div>
+      {/* Gallery */}
+      <section className="px-6 py-12">
+        {projects.length > 0 ? (
+          <MasonryGallery projects={projects} />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <p className="text-muted-foreground text-lg mb-4">No projects yet. Click "Start project" to begin!</p>
+          </div>
+        )}
+      </section>
+
+      {/* Modal */}
+      <ProjectModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSubmit={handleAddProject} />
+    </main>
   )
 }
