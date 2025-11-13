@@ -209,9 +209,39 @@ export const extractWebsiteData = action({
 
         if (!scrapeResponse.ok) {
           const errorText = await scrapeResponse.text()
+          // Parse HTML error responses to extract meaningful error messages
+          let cleanError = errorText
+          
+          // Check if response is HTML
+          if (errorText.trim().startsWith('<')) {
+            // Try to extract title or h1 from HTML error pages
+            const titleMatch = errorText.match(/<title[^>]*>([^<]+)<\/title>/i)
+            const h1Match = errorText.match(/<h1[^>]*>([^<]+)<\/h1>/i)
+            
+            if (titleMatch) {
+              cleanError = titleMatch[1].trim()
+            } else if (h1Match) {
+              cleanError = h1Match[1].trim()
+            } else {
+              // Fallback to status code description
+              cleanError = `HTTP ${scrapeResponse.status} Error`
+            }
+          } else {
+            // Try to parse JSON error if possible
+            try {
+              const jsonError = JSON.parse(errorText)
+              cleanError = jsonError.error || jsonError.message || cleanError
+            } catch {
+              // If not JSON, use the text as-is but limit length
+              cleanError = errorText.length > 200 
+                ? errorText.substring(0, 200) + '...' 
+                : errorText
+            }
+          }
+          
           results.push({
             url,
-            error: `HTTP ${scrapeResponse.status}: ${errorText}`,
+            error: `HTTP ${scrapeResponse.status}: ${cleanError}`,
           })
           continue
         }
