@@ -104,4 +104,22 @@ export default defineSchema({
     .index("by_domain", ["domainId"])
     .index("by_type", ["type"])
     .index("by_analyzed_at", ["analyzedAt"]),
+
+  // Table to store voice-overs for services
+  voiceOvers: defineTable({
+    domainId: v.id("domains"), // Reference to the domain
+    offeringId: v.optional(v.id("offerings")), // Reference to the offering (service)
+    serviceName: v.string(), // Name of the service
+    pitchText: v.string(), // The pitch script text
+    audioStorageId: v.id("_storage"), // Storage ID for the audio file
+    audioUrl: v.string(), // URL to access the audio file
+    subtitlesStorageId: v.optional(v.id("_storage")), // Storage ID for subtitles file (SRT)
+    subtitlesUrl: v.optional(v.string()), // URL to access the subtitles file
+    voiceId: v.string(), // ElevenLabs voice ID used
+    voiceName: v.string(), // Name of the voice used
+    createdAt: v.number(), // Timestamp when voice-over was created
+  })
+    .index("by_domain", ["domainId"])
+    .index("by_offering", ["offeringId"])
+    .index("by_created_at", ["createdAt"]),
 });

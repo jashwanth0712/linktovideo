@@ -374,3 +374,236 @@ ${args.markdownContent.substring(0, 50000)}
   },
 })
 
+// AI action - generate voice-over pitch script for a service
+export const generatePitch = action({
+  args: {
+    serviceName: v.string(),
+    serviceDescription: v.string(),
+    companyName: v.optional(v.string()),
+    companyDescription: v.optional(v.string()),
+    userPrompt: v.optional(v.string()),
+  },
+  returns: v.object({
+    pitch: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      // Initialize the agent
+      const agent = new Agent(components.agent, {
+        name: "pitch-generator",
+        languageModel: openai("gpt-4o-mini"),
+        instructions: "You are an AI assistant that creates compelling, creative voice-over pitch scripts for products and services. Write engaging, persuasive content that tells a story.",
+      })
+
+      // Create a thread for this generation
+      const { thread } = await agent.createThread(ctx, {
+        title: "Generate Pitch",
+        summary: "Create voice-over pitch script for service",
+      })
+
+      const companyInfo = args.companyName 
+        ? `Company: ${args.companyName}${args.companyDescription ? `\nCompany Description: ${args.companyDescription}` : ''}`
+        : ''
+
+      // Base prompt structure
+      let basePrompt = `
+Create a compelling voice-over pitch script for the following service. The pitch should be exactly 140-150 words and follow this structure:
+
+1. Problem - Start by describing the problem or pain point this service solves (2-3 sentences)
+2. Introducing... - Transition with "Introducing [service name]" (1 sentence)
+3. [Company Name] Features - Describe the key features and benefits of the service (3-4 sentences)
+4. Tagline - End with a memorable tagline or call-to-action (1 sentence)
+
+Service Details:
+Service Name: ${args.serviceName}
+Service Description: ${args.serviceDescription}
+${companyInfo}
+`
+
+      // If user provided a custom prompt, incorporate it
+      if (args.userPrompt && args.userPrompt.trim()) {
+        basePrompt += `\n\nAdditional Requirements from User:\n${args.userPrompt}\n\nPlease incorporate these requirements while maintaining the structure above.`
+      } else {
+        basePrompt += `\n\nMake it creative, engaging, and persuasive. Write in a conversational tone suitable for a voice-over. Ensure the total word count is between 140-150 words.`
+      }
+
+      // Define the schema using zod
+      const pitchSchema = z.object({
+        pitch: z.string().describe("The complete voice-over pitch script (140-150 words)"),
+      })
+
+      // Use thread.generateObject with zod schema
+      const result = await thread.generateObject({
+        prompt: basePrompt,
+        schema: pitchSchema,
+      })
+
+      return {
+        pitch: result.object.pitch,
+      }
+    } catch (error) {
+      console.error("Pitch generation error:", error)
+      throw new Error(
+        `Failed to generate pitch: ${error instanceof Error ? error.message : "Unknown error"}`
+      )
+    }
+  },
+})
+
+// Helper function to generate SRT subtitles from text
+function generateSRT(text: string): string {
+  const words = text.split(/\s+/).filter(word => word.length > 0)
+  const wordsPerSubtitle = 8 // Approximate words per subtitle
+  const subtitleDuration = 3000 // 3 seconds per subtitle in milliseconds
+  const subtitles: string[] = []
+  
+  let startTime = 0
+  let subtitleIndex = 1
+  
+  for (let i = 0; i < words.length; i += wordsPerSubtitle) {
+    const subtitleWords = words.slice(i, i + wordsPerSubtitle)
+    const subtitleText = subtitleWords.join(' ')
+    
+    const start = formatSRTTime(startTime)
+    const end = formatSRTTime(startTime + subtitleDuration)
+    
+    subtitles.push(`${subtitleIndex}`)
+    subtitles.push(`${start} --> ${end}`)
+    subtitles.push(subtitleText)
+    subtitles.push('')
+    
+    startTime += subtitleDuration
+    subtitleIndex++
+  }
+  
+  return subtitles.join('\n')
+}
+
+function formatSRTTime(ms: number): string {
+  const hours = Math.floor(ms / 3600000)
+  const minutes = Math.floor((ms % 3600000) / 60000)
+  const seconds = Math.floor((ms % 60000) / 1000)
+  const milliseconds = ms % 1000
+  
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`
+}
+
+// Voice name mapping
+const voiceNames: Record<string, string> = {
+  '21m00Tcm4TlvDq8ikWAM': 'Rachel',
+  'AZnzlk1XvdvUeBnXmlld': 'Domi',
+  'EXAVITQu4vr4xnSDxMaL': 'Bella',
+  'ErXwobaYiN019PkySvjV': 'Antoni',
+  'MF3mGyEYCl7XYWbV9V6O': 'Elli',
+  'TxGEqnHWrfWFTfGW9XjX': 'Josh',
+  'VR6AewLTigWG4xSOukaG': 'Arnold',
+  'pNInz6obpgDQGcFmaJgB': 'Adam',
+}
+
+// ElevenLabs voice-over generation action
+// Updated to include domainId, serviceName, and offeringId for storage
+// This action stores both audio and subtitles files in Convex storage
+// @ts-ignore TS7022 - TypeScript circular reference, will resolve after Convex regenerates types
+export const generateVoiceOver = action({
+  args: {
+    text: v.string(),
+    voiceId: v.optional(v.string()),
+    domainId: v.id("domains"),
+    serviceName: v.string(),
+    offeringId: v.optional(v.id("offerings")),
+  },
+  returns: v.object({
+    audioUrl: v.string(),
+    audioStorageId: v.id("_storage"),
+    subtitlesUrl: v.optional(v.string()),
+    subtitlesStorageId: v.optional(v.id("_storage")),
+    voiceOverId: v.id("voiceOvers"),
+  }),
+  // @ts-ignore TS7023 - TypeScript circular reference, will resolve after Convex regenerates types
+  handler: async (ctx, args) => {
+    try {
+      const apiKey = process.env.ELEVENLABS_API_KEY
+      if (!apiKey) {
+        throw new Error('ELEVENLABS_API_KEY environment variable is not set')
+      }
+
+      // Default to a professional voice if not specified
+      const voiceId = args.voiceId || '21m00Tcm4TlvDq8ikWAM' // Rachel - professional female voice
+      const voiceName = voiceNames[voiceId] || 'Unknown'
+
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            text: args.text,
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+            },
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `ElevenLabs API error: ${response.status} ${response.statusText} - ${errorText}`
+        )
+      }
+
+      // Get audio as ArrayBuffer
+      const audioBuffer = await response.arrayBuffer()
+      
+      // Store audio file in Convex storage
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' })
+      const audioStorageId = await ctx.storage.store(audioBlob)
+      const audioUrl = await ctx.storage.getUrl(audioStorageId)
+      
+      if (!audioUrl) {
+        throw new Error('Failed to get audio file URL from storage')
+      }
+
+      // Generate SRT subtitles
+      const srtContent = generateSRT(args.text)
+      const subtitlesBlob = new Blob([srtContent], { type: 'text/plain' })
+      const subtitlesStorageId = await ctx.storage.store(subtitlesBlob)
+      const subtitlesUrl = await ctx.storage.getUrl(subtitlesStorageId)
+
+      // Save voice-over to database
+      // @ts-ignore - internal.mutations.saveVoiceOver will be available after Convex regenerates types
+      const voiceOverId = await ctx.runMutation(internal.mutations.saveVoiceOver, {
+        domainId: args.domainId,
+        offeringId: args.offeringId,
+        serviceName: args.serviceName,
+        pitchText: args.text,
+        audioStorageId,
+        audioUrl,
+        subtitlesStorageId,
+        subtitlesUrl: subtitlesUrl || undefined,
+        voiceId,
+        voiceName,
+      })
+
+      return {
+        audioUrl,
+        audioStorageId,
+        subtitlesUrl: subtitlesUrl || undefined,
+        subtitlesStorageId,
+        voiceOverId,
+      }
+    } catch (error) {
+      console.error('Voice-over generation error:', error)
+      throw new Error(
+        `Failed to generate voice-over: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  },
+})
+

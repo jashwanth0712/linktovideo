@@ -269,3 +269,37 @@ export const saveOffering = internalMutation({
   },
 })
 
+// Mutation to save voice-over
+export const saveVoiceOver = internalMutation({
+  args: {
+    domainId: v.id("domains"),
+    offeringId: v.optional(v.id("offerings")),
+    serviceName: v.string(),
+    pitchText: v.string(),
+    audioStorageId: v.id("_storage"),
+    audioUrl: v.string(),
+    subtitlesStorageId: v.optional(v.id("_storage")),
+    subtitlesUrl: v.optional(v.string()),
+    voiceId: v.string(),
+    voiceName: v.string(),
+  },
+  returns: v.id("voiceOvers"),
+  handler: async (ctx, args) => {
+    const voiceOverId = await ctx.db.insert("voiceOvers", {
+      domainId: args.domainId,
+      offeringId: args.offeringId,
+      serviceName: args.serviceName,
+      pitchText: args.pitchText,
+      audioStorageId: args.audioStorageId,
+      audioUrl: args.audioUrl,
+      subtitlesStorageId: args.subtitlesStorageId,
+      subtitlesUrl: args.subtitlesUrl,
+      voiceId: args.voiceId,
+      voiceName: args.voiceName,
+      createdAt: Date.now(),
+    })
+
+    return voiceOverId
+  },
+})
+

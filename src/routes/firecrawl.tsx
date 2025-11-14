@@ -10,6 +10,8 @@ import { BrandingResults } from '../components/firecrawl/BrandingResults'
 import { MapStep } from '../components/firecrawl/MapStep'
 import { ExtractResults } from '../components/firecrawl/ExtractResults'
 import { AnalyzeOfferings } from '../components/firecrawl/AnalyzeOfferings'
+import { PitchGeneration } from '../components/firecrawl/PitchGeneration'
+import { VoiceOverGeneration } from '../components/firecrawl/VoiceOverGeneration'
 
 export const Route = createFileRoute('/firecrawl')({
   component: Firecrawl,
@@ -17,7 +19,7 @@ export const Route = createFileRoute('/firecrawl')({
 
 function Firecrawl() {
   const [url, setUrl] = useState('')
-  const [step, setStep] = useState<'branding' | 'map' | 'extract' | 'analyze'>('branding')
+  const [step, setStep] = useState<'branding' | 'map' | 'extract' | 'analyze' | 'pitch' | 'voiceover'>('branding')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [brandingData, setBrandingData] = useState<BrandingData | null>(null)
@@ -25,6 +27,9 @@ function Firecrawl() {
   const [selectedUrls, setSelectedUrls] = useState<Set<string>>(new Set())
   const [extractResults, setExtractResults] = useState<ExtractResult[]>([])
   const [offerings, setOfferings] = useState<Offering[]>([])
+  const [selectedService, setSelectedService] = useState<Offering | null>(null)
+  const [pitchText, setPitchText] = useState<string>('')
+  const [serviceName, setServiceName] = useState<string>('')
 
   const scrapeBranding = useAction(api.myFunctions.scrapeBranding)
   const mapWebsite = useAction(api.myFunctions.mapWebsite)
@@ -161,7 +166,18 @@ function Firecrawl() {
         markdownContent: combinedMarkdown,
       })
 
-      setOfferings(analyzedOfferings)
+      // Deduplicate offerings by name and type
+      const seen = new Set<string>()
+      const uniqueOfferings = analyzedOfferings.filter((o) => {
+        const key = `${o.type}-${o.name}`
+        if (seen.has(key)) {
+          return false
+        }
+        seen.add(key)
+        return true
+      })
+
+      setOfferings(uniqueOfferings)
       setStep('analyze')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze offerings')
@@ -171,7 +187,11 @@ function Firecrawl() {
   }
 
   const handleBack = () => {
-    if (step === 'analyze') {
+    if (step === 'voiceover') {
+      setStep('pitch')
+    } else if (step === 'pitch') {
+      setStep('analyze')
+    } else if (step === 'analyze') {
       setStep('extract')
       setOfferings([])
     } else if (step === 'extract') {
@@ -190,25 +210,39 @@ function Firecrawl() {
     setSelectedUrls(new Set())
     setExtractResults([])
     setOfferings([])
+    setSelectedService(null)
+    setPitchText('')
+    setServiceName('')
     setError(null)
   }
 
-  // Update offerings from query when available
+  // Update offerings from query when available (only if we don't already have offerings)
   useEffect(() => {
-    if (domainOfferings && domainOfferings.length > 0) {
-      setOfferings(
-        domainOfferings.map((o) => ({
+    if (domainOfferings && domainOfferings.length > 0 && offerings.length === 0) {
+      // Deduplicate offerings by name and type
+      const seen = new Set<string>()
+      const uniqueOfferings = domainOfferings
+        .map((o) => ({
           type: o.type,
           name: o.name,
           description: o.description,
-        })),
-      )
+        }))
+        .filter((o) => {
+          const key = `${o.type}-${o.name}`
+          if (seen.has(key)) {
+            return false
+          }
+          seen.add(key)
+          return true
+        })
+
+      setOfferings(uniqueOfferings)
     }
-  }, [domainOfferings])
+  }, [domainOfferings, offerings.length])
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className={`container mx-auto px-4 py-8 ${step === 'pitch' || step === 'voiceover' ? 'max-w-7xl' : 'max-w-6xl'}`}>
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">
@@ -221,7 +255,11 @@ function Firecrawl() {
                 ? 'Select pages to extract content from'
                 : step === 'extract'
                   ? 'Review extracted markdown content'
-                  : 'Analyze offerings and services'}
+                  : step === 'analyze'
+                    ? 'Analyze offerings and services'
+                    : step === 'pitch'
+                      ? 'Generate professional voice-over pitch scripts'
+                      : 'Create voice-over audio for your pitch'}
           </p>
         </div>
 
@@ -300,6 +338,40 @@ function Firecrawl() {
             offerings={offerings}
             loading={loading}
             onBack={handleBack}
+            onReset={handleReset}
+            onProceed={(service) => {
+              setSelectedService(service)
+              setStep('pitch')
+            }}
+          />
+        )}
+
+        {/* Pitch Generation Step */}
+        {step === 'pitch' && (
+          <PitchGeneration
+            offerings={offerings}
+            brandingData={brandingData}
+            selectedService={selectedService}
+            onBack={() => setStep('analyze')}
+            onReset={handleReset}
+            onProceed={(text, name) => {
+              setPitchText(text)
+              setServiceName(name)
+              setStep('voiceover')
+            }}
+          />
+        )}
+
+        {/* Voice-Over Generation Step */}
+        {step === 'voiceover' && domain?._id && (
+          <VoiceOverGeneration
+            pitchText={pitchText}
+            serviceName={serviceName}
+            domainId={domain._id}
+            offeringId={
+              domainOfferings?.find((o) => o.name === serviceName && o.type === 'service')?._id
+            }
+            onBack={() => setStep('pitch')}
             onReset={handleReset}
           />
         )}

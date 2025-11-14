@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Offering } from './types'
 
 type AnalyzeOfferingsProps = {
@@ -5,6 +6,7 @@ type AnalyzeOfferingsProps = {
   loading: boolean
   onBack: () => void
   onReset: () => void
+  onProceed: (selectedService: Offering | null) => void
 }
 
 export function AnalyzeOfferings({
@@ -12,9 +14,19 @@ export function AnalyzeOfferings({
   loading,
   onBack,
   onReset,
+  onProceed,
 }: AnalyzeOfferingsProps) {
+  const [selectedService, setSelectedService] = useState<Offering | null>(null)
   const products = offerings.filter((o) => o.type === 'product')
   const services = offerings.filter((o) => o.type === 'service')
+
+  const handleServiceClick = (service: Offering) => {
+    if (selectedService?.name === service.name) {
+      setSelectedService(null)
+    } else {
+      setSelectedService(service)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -36,6 +48,15 @@ export function AnalyzeOfferings({
           >
             Back
           </button>
+          {services.length > 0 && (
+            <button
+              onClick={() => onProceed(selectedService)}
+              disabled={!selectedService}
+              className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+            >
+              Next Step →
+            </button>
+          )}
           <button
             onClick={onReset}
             className="rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-card-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -124,42 +145,70 @@ export function AnalyzeOfferings({
 
           {services.length > 0 && (
             <div>
-              <h3 className="text-xl font-semibold mb-4 text-card-foreground">
-                Services ({services.length})
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-semibold text-card-foreground">
+                  Services ({services.length})
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedService
+                    ? `Selected: ${selectedService.name}`
+                    : 'Select a service to generate pitch'}
+                </p>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {services.map((service, index) => (
-                  <div
-                    key={index}
-                    className="rounded-lg border border-border bg-card p-6 shadow-sm"
-                  >
-                    <div className="flex items-start gap-3 mb-2">
-                      <div className="rounded-full bg-chart-2/10 p-2">
-                        <svg
-                          className="h-4 w-4 text-chart-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                {services.map((service, index) => {
+                  const isSelected = selectedService?.name === service.name
+                  return (
+                    <div
+                      key={index}
+                      onClick={() => handleServiceClick(service)}
+                      className={`rounded-lg border p-6 shadow-sm cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-2'
+                          : 'border-border bg-card hover:border-primary/50 hover:bg-accent/30'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 mb-2">
+                        <div
+                          className={`rounded-full p-2 transition-colors ${
+                            isSelected
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-chart-2/10 text-chart-2'
+                          }`}
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                          />
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <h4 className="text-lg font-semibold text-card-foreground mb-2">
-                          {service.name}
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          {service.description}
-                        </p>
+                          <svg
+                            className="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <h4 className="text-lg font-semibold text-card-foreground">
+                              {service.name}
+                            </h4>
+                            {isSelected && (
+                              <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {service.description}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}
@@ -168,4 +217,3 @@ export function AnalyzeOfferings({
     </div>
   )
 }
-
