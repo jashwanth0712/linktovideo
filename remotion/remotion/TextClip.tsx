@@ -6,24 +6,20 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { Logo } from "./HelloWorld/Logo";
-import { Subtitle } from "./HelloWorld/Subtitle";
-import { Title } from "./HelloWorld/Title";
+import { Title } from "./TextClip/Title";
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
 
-export const helloWorldCompSchema = z.object({
+export const textClipCompSchema = z.object({
   titleText: z.string(),
   titleColor: zColor(),
-  logoColor1: zColor(),
-  logoColor2: zColor(),
+  backgroundColor: zColor(),
 });
 
-export const HelloWorld: React.FC<z.infer<typeof helloWorldCompSchema>> = ({
+export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
   titleText: propOne,
   titleColor: propTwo,
-  logoColor1,
-  logoColor2,
+  backgroundColor: propThree,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();
@@ -42,10 +38,10 @@ export const HelloWorld: React.FC<z.infer<typeof helloWorldCompSchema>> = ({
 
   // A <AbsoluteFill> is just a absolutely positioned <div>!
   return (
-    <AbsoluteFill style={{ backgroundColor: "white" }}>
+  <AbsoluteFill style={{ backgroundColor: propThree }}>
       <AbsoluteFill style={{ opacity }}>
         {/* Sequences can shift the time for its children! */}
-        <Sequence from={35}>
+        <Sequence from={0}>
           <Title titleText={propOne} titleColor={propTwo} />
         </Sequence>
       </AbsoluteFill>

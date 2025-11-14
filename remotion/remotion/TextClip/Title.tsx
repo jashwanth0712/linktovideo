@@ -8,7 +8,9 @@ const title: React.CSSProperties = {
   fontSize: 100,
   textAlign: "center",
   position: "absolute",
-  bottom: 160,
+  top: "50%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
   width: "100%",
 };
 
