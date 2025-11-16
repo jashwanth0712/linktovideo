@@ -4,6 +4,19 @@ import { TextClip, textClipCompSchema } from "./TextClip";
 // Each <Composition> is an entry in the sidebar!
 
 export const RemotionRoot: React.FC = () => {
+  // Default animation durations (in frames)
+  const defaultScaleDuration = 40;
+  const defaultFadeInDuration = 40;
+  const defaultSlideInDuration = 40;
+  const defaultChangingWordDuration = 40;
+  
+  // Calculate total duration dynamically
+  const totalDuration = 
+    defaultScaleDuration + 
+    defaultFadeInDuration + 
+    defaultSlideInDuration + 
+    defaultChangingWordDuration;
+
   return (
     <>
       <Composition
@@ -11,7 +24,7 @@ export const RemotionRoot: React.FC = () => {
         // npx remotion render TextClip
         id="TextClip"
         component={TextClip}
-        durationInFrames={200}
+        durationInFrames={totalDuration}
         fps={30}
         width={1920}
         height={1080}
@@ -24,10 +37,13 @@ export const RemotionRoot: React.FC = () => {
           titleColor: "#000000",
           backgroundColor: "#FFFFFF",
           rating: 0,
-          // TODO: Add default props for the TextClip component
-          /*
-          
-          */
+          // Background gradient option (hardcoded schemes)
+          gradientOption: "option-1",
+          // Dynamic animation durations (in frames)
+          scaleAnimationDuration: defaultScaleDuration,
+          fadeInAnimationDuration: defaultFadeInDuration,
+          slideInAnimationDuration: defaultSlideInDuration,
+          changingWordAnimationDuration: defaultChangingWordDuration,
         }}
       />
     </>

@@ -15,15 +15,17 @@ const title: React.CSSProperties = {
 };
 
 const word: React.CSSProperties = {
-  marginLeft: 10,
-  marginRight: 10,
+  marginLeft: 12,
+  marginRight: 12,
   display: "inline-block",
+  letterSpacing: "2px",
 };
 
 export const Title: React.FC<{
   readonly titleText: string;
   readonly titleColor: string;
-}> = ({ titleText, titleColor }) => {
+  readonly durationInFrames?: number;
+}> = ({ titleText, titleColor, durationInFrames }) => {
   const videoConfig = useVideoConfig();
   const frame = useCurrentFrame();
 
@@ -32,10 +34,14 @@ export const Title: React.FC<{
   return (
     <h1 style={title}>
       {words.map((t, i) => {
+        // Scale timing based on duration if provided
+        const adjustedFrame = durationInFrames 
+          ? frame - (i * (durationInFrames / (words.length * 2)))
+          : frame;
 
         const scale = spring({
           fps: videoConfig.fps,
-          frame: frame,
+          frame: adjustedFrame,
           config: {
             damping: 200,
           },
@@ -48,6 +54,7 @@ export const Title: React.FC<{
               ...word,
               color: titleColor,
               transform: `scale(${scale})`,
+              filter: `drop-shadow(0 0 8px ${titleColor}40)`,
             }}
           >
             {t}
