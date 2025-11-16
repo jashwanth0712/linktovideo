@@ -12,18 +12,23 @@ import { zColor } from "@remotion/zod-types";
 import { FONT_FAMILY } from "./TextClip/constants";
 
 // Arafat : this is where we define schema 
-export const textClipCompSchema = z.object({
+// Schema for a single animation
+const animationSchema = z.object({
   titleText: z.string(),
   titleColor: zColor(),
   backgroundColor: zColor(),
   rating: z.number(),
   // Background gradient option (hardcoded schemes)
   gradientOption: z.enum(["option-1", "option-2"]).default("option-1"),
-  // Dynamic animation durations (in frames)
-  scaleAnimationDuration: z.number().default(40),
-  fadeInAnimationDuration: z.number().default(40),
-  slideInAnimationDuration: z.number().default(40),
-  changingWordAnimationDuration: z.number().default(40),
+  // Animation style to use
+  animationStyle: z.enum(["scale", "fadeIn", "slideIn", "changingWord"]).default("scale"),
+  // Duration in seconds (will be converted to frames)
+  duration: z.number().default(2.0),
+});
+
+// Main schema - array of animations
+export const textClipCompSchema = z.object({
+  animations: z.array(animationSchema).min(1),
 });
 
 // Helper function to create animated gradient based on option and frame
@@ -276,86 +281,123 @@ const ChangingLastWordTitle: React.FC<{
 };
 
 export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
-  titleText: propOne,
-  titleColor: propTwo,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  backgroundColor: _propThree,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  rating: _propFour,
-  gradientOption,
-  scaleAnimationDuration,
-  fadeInAnimationDuration,
-  slideInAnimationDuration,
-  changingWordAnimationDuration,
+  animations,
 }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { fps } = useVideoConfig();
 
-  // Calculate sequence start positions dynamically
-  const scaleStart = 0;
-  const fadeInStart = scaleAnimationDuration;
-  const slideInStart = fadeInStart + fadeInAnimationDuration;
-  const changingWordStart = slideInStart + slideInAnimationDuration;
+  // Convert duration from seconds to frames for each animation
+  const animationsWithFrames = animations.map((anim) => ({
+    ...anim,
+    durationInFrames: Math.round(anim.duration * fps),
+  }));
 
-  // Fade out the animation at the end
-  const opacity = interpolate(
-    frame,
-    [durationInFrames - 25, durationInFrames - 15],
-    [1, 0],
-    {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    },
-  );
+  // Calculate start positions for each animation
+  let currentStart = 0;
+  const animationsWithStart = animationsWithFrames.map((anim) => {
+    const start = currentStart;
+    currentStart += anim.durationInFrames;
+    return {
+      ...anim,
+      startFrame: start,
+    };
+  });
 
-  // Get animated background gradient based on selected option
-  const backgroundGradient = getAnimatedGradient(
-    gradientOption || "option-1",
-    frame,
-    durationInFrames
-  );
+  // Render animation component based on style
+  const renderAnimation = (anim: typeof animationsWithStart[0]) => {
+    const { titleText, titleColor, animationStyle, durationInFrames: animDuration } = anim;
+
+    switch (animationStyle) {
+      case "scale":
+        return (
+          <Title 
+            titleText={titleText} 
+            titleColor={titleColor} 
+            durationInFrames={animDuration}
+          />
+        );
+      case "fadeIn":
+        return (
+          <FadeInTitle 
+            titleText={titleText} 
+            titleColor={titleColor} 
+            durationInFrames={animDuration}
+          />
+        );
+      case "slideIn":
+        return (
+          <SlideInTitle 
+            titleText={titleText} 
+            titleColor={titleColor} 
+            durationInFrames={animDuration}
+          />
+        );
+      case "changingWord":
+        return (
+          <ChangingLastWordTitle 
+            titleText={titleText} 
+            titleColor={titleColor} 
+            durationInFrames={animDuration}
+          />
+        );
+      default:
+        return (
+          <Title 
+            titleText={titleText} 
+            titleColor={titleColor} 
+            durationInFrames={animDuration}
+          />
+        );
+    }
+  };
 
   // A <AbsoluteFill> is just a absolutely positioned <div>!
   return (
-    <AbsoluteFill style={{ 
-      backgroundImage: backgroundGradient,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    }}>
-      <AbsoluteFill style={{ opacity }}>
-        {/* Animation 1: Scale animation (original) */}
-        <Sequence durationInFrames={scaleAnimationDuration} from={scaleStart}>
-          <Title 
-            titleText={propOne} 
-            titleColor={propTwo} 
-            durationInFrames={scaleAnimationDuration}
-          />
-        </Sequence>
-        {/* Animation 2: Fade-in animation */}
-        <Sequence from={fadeInStart} durationInFrames={fadeInAnimationDuration}>
-          <FadeInTitle 
-            titleText={propOne} 
-            titleColor={propTwo} 
-            durationInFrames={fadeInAnimationDuration}
-          />
-        </Sequence>
-        {/* Animation 3: Slide-in animation */}
-        <Sequence from={slideInStart} durationInFrames={slideInAnimationDuration}>
-          <SlideInTitle 
-            titleText={propOne} 
-            titleColor={propTwo} 
-            durationInFrames={slideInAnimationDuration}
-          />
-        </Sequence>
-        {/* Animation 4: Changing last word animation */}
-        <Sequence from={changingWordStart} durationInFrames={changingWordAnimationDuration}>
-          <ChangingLastWordTitle 
-            titleText={propOne} 
-            titleColor={propTwo} 
-            durationInFrames={changingWordAnimationDuration}
-          />
-        </Sequence>
-      </AbsoluteFill>
+    <AbsoluteFill>
+      {animationsWithStart.map((anim, index) => {
+        // Calculate relative frame for this animation
+        const relativeFrame = frame - anim.startFrame;
+        const isActive = relativeFrame >= 0 && relativeFrame < anim.durationInFrames;
+        
+        // Get animated background gradient based on selected option for this animation
+        const backgroundGradient = isActive
+          ? getAnimatedGradient(
+              anim.gradientOption || "option-1",
+              relativeFrame,
+              anim.durationInFrames
+            )
+          : undefined;
+
+        // Fade out at the end of each animation
+        const opacity = interpolate(
+          relativeFrame,
+          [anim.durationInFrames - 25, anim.durationInFrames - 15],
+          [1, 0],
+          {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          },
+        );
+
+        return (
+          <Sequence
+            key={index}
+            from={anim.startFrame}
+            durationInFrames={anim.durationInFrames}
+          >
+            <AbsoluteFill
+              style={{
+                backgroundImage: backgroundGradient,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                opacity: isActive ? opacity : 0,
+              }}
+            >
+              {renderAnimation(anim)}
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
     </AbsoluteFill>
   );
 };

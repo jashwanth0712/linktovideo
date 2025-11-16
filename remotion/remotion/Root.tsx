@@ -4,18 +4,34 @@ import { TextClip, textClipCompSchema } from "./TextClip";
 // Each <Composition> is an entry in the sidebar!
 
 export const RemotionRoot: React.FC = () => {
-  // Default animation durations (in frames)
-  const defaultScaleDuration = 40;
-  const defaultFadeInDuration = 40;
-  const defaultSlideInDuration = 40;
-  const defaultChangingWordDuration = 40;
+  const fps = 30;
   
-  // Calculate total duration dynamically
-  const totalDuration = 
-    defaultScaleDuration + 
-    defaultFadeInDuration + 
-    defaultSlideInDuration + 
-    defaultChangingWordDuration;
+  // Default animations array
+  const defaultAnimations = [
+    {
+      titleText: "Introducing Reelcat",
+      titleColor: "#000000",
+      backgroundColor: "#FFFFFF",
+      rating: 0,
+      gradientOption: "option-1" as const,
+      animationStyle: "scale" as const,
+      duration: 2.0,
+    },
+    {
+      titleText: "An amazing mobile editor",
+      titleColor: "#000000",
+      backgroundColor: "#FFFFFF",
+      rating: 0,
+      gradientOption: "option-1" as const,
+      animationStyle: "fadeIn" as const,
+      duration: 2.0,
+    },
+  ];
+  
+  // Calculate total duration dynamically (sum of all animation durations in seconds, converted to frames)
+  const totalDuration = Math.round(
+    defaultAnimations.reduce((sum, anim) => sum + anim.duration, 0) * fps
+  );
 
   return (
     <>
@@ -25,7 +41,7 @@ export const RemotionRoot: React.FC = () => {
         id="TextClip"
         component={TextClip}
         durationInFrames={totalDuration}
-        fps={30}
+        fps={fps}
         width={1920}
         height={1080}
         // You can override these props for each render:
@@ -33,17 +49,7 @@ export const RemotionRoot: React.FC = () => {
         schema={textClipCompSchema}
         //Arafat : this is where we define default props for the TextClip component
         defaultProps={{
-          titleText: "Render Server Template",
-          titleColor: "#000000",
-          backgroundColor: "#FFFFFF",
-          rating: 0,
-          // Background gradient option (hardcoded schemes)
-          gradientOption: "option-1",
-          // Dynamic animation durations (in frames)
-          scaleAnimationDuration: defaultScaleDuration,
-          fadeInAnimationDuration: defaultFadeInDuration,
-          slideInAnimationDuration: defaultSlideInDuration,
-          changingWordAnimationDuration: defaultChangingWordDuration,
+          animations: defaultAnimations,
         }}
       />
     </>
