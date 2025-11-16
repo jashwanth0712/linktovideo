@@ -5,7 +5,7 @@ import { FONT_FAMILY } from "./constants";
 const title: React.CSSProperties = {
   fontFamily: FONT_FAMILY,
   fontWeight: "bold",
-  fontSize: 100,
+  fontSize: 100, // Arafat : make this dynamic based on the number of words in the title
   textAlign: "center",
   position: "absolute",
   top: "50%",
@@ -32,11 +32,10 @@ export const Title: React.FC<{
   return (
     <h1 style={title}>
       {words.map((t, i) => {
-        const delay = i * 5;
 
         const scale = spring({
           fps: videoConfig.fps,
-          frame: frame - delay,
+          frame: frame,
           config: {
             damping: 200,
           },

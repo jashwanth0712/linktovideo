@@ -9,17 +9,19 @@ import {
 import { Title } from "./TextClip/Title";
 import { z } from "zod";
 import { zColor } from "@remotion/zod-types";
-
+// Arafat : this is where we define schema 
 export const textClipCompSchema = z.object({
   titleText: z.string(),
   titleColor: zColor(),
   backgroundColor: zColor(),
+  rating: z.number(),
 });
 
 export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
   titleText: propOne,
   titleColor: propTwo,
   backgroundColor: propThree,
+  rating: propFour,
 }) => {
   const frame = useCurrentFrame();
   const { durationInFrames, fps } = useVideoConfig();

@@ -18,10 +18,16 @@ export const RemotionRoot: React.FC = () => {
         // You can override these props for each render:
         // https://www.remotion.dev/docs/parametrized-rendering
         schema={textClipCompSchema}
+        //Arafat : this is where we define default props for the TextClip component
         defaultProps={{
           titleText: "Render Server Template",
           titleColor: "#000000",
           backgroundColor: "#FFFFFF",
+          rating: 0,
+          // TODO: Add default props for the TextClip component
+          /*
+          
+          */
         }}
       />
     </>
