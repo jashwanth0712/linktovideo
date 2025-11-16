@@ -19,6 +19,7 @@ const animationSchema = z.object({
   backgroundColor: zColor(),
   rating: z.number(),
   // Background gradient option (hardcoded schemes)
+  // Available options: option-1, option-2
   gradientOption: z.enum(["option-1", "option-2"]).default("option-1"),
   // Animation style to use
   animationStyle: z.enum(["scale", "fadeIn", "slideIn", "changingWord"]).default("scale"),
