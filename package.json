@@ -11,7 +11,8 @@
     "build": "vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "format": "prettier --write .",
-    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "generate-voice-samples": "node scripts/generate-voice-samples.js"
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.65",

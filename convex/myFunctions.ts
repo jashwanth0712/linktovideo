@@ -607,3 +607,137 @@ export const generateVoiceOver = action({
   },
 })
 
+// Action to generate an upload URL for mixed audio
+// This allows direct file upload from the client without passing large data through action arguments
+// @ts-ignore TS7022 - TypeScript circular reference, will resolve after Convex regenerates types
+export const generateMixedAudioUploadUrl = action({
+  args: {},
+  returns: v.object({
+    uploadUrl: v.string(),
+  }),
+  // @ts-ignore TS7023 - TypeScript circular reference, will resolve after Convex regenerates types
+  handler: async (ctx) => {
+    try {
+      const uploadUrl = await ctx.storage.generateUploadUrl()
+      return { uploadUrl }
+    } catch (error) {
+      console.error('Failed to generate upload URL:', error)
+      throw new Error(
+        `Failed to generate upload URL: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  },
+})
+
+// Action to save mixed audio metadata after file upload
+// Called after the file is uploaded using the upload URL
+// @ts-ignore TS7022 - TypeScript circular reference, will resolve after Convex regenerates types
+export const saveMixedAudioMetadata = action({
+  args: {
+    voiceOverId: v.id("voiceOvers"),
+    storageId: v.id("_storage"),
+    bgmFileName: v.string(),
+    bgmVolume: v.number(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    mixedAudioUrl: v.string(),
+  }),
+  // @ts-ignore TS7023 - TypeScript circular reference, will resolve after Convex regenerates types
+  handler: async (ctx, args) => {
+    try {
+      // Get the URL for the uploaded file
+      const mixedAudioUrl = await ctx.storage.getUrl(args.storageId)
+      
+      if (!mixedAudioUrl) {
+        throw new Error('Failed to get mixed audio file URL from storage')
+      }
+
+      // Update the voice-over record with mixed audio info
+      await ctx.runMutation(internal.mutations.updateVoiceOverWithMixedAudio, {
+        voiceOverId: args.voiceOverId,
+        mixedAudioStorageId: args.storageId,
+        mixedAudioUrl,
+        bgmFileName: args.bgmFileName,
+        bgmVolume: args.bgmVolume,
+      })
+
+      return { success: true, mixedAudioUrl }
+    } catch (error) {
+      console.error('Failed to save mixed audio metadata:', error)
+      throw new Error(
+        `Failed to save mixed audio metadata: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  },
+})
+
+// Action to generate a voice sample for preview (doesn't store in database)
+// @ts-ignore TS7022 - TypeScript circular reference, will resolve after Convex regenerates types
+export const generateVoiceSample = action({
+  args: {
+    voiceId: v.string(),
+    sampleText: v.optional(v.string()),
+  },
+  returns: v.object({
+    audioUrl: v.string(),
+  }),
+  // @ts-ignore TS7023 - TypeScript circular reference, will resolve after Convex regenerates types
+  handler: async (ctx, args) => {
+    try {
+      const apiKey = process.env.ELEVENLABS_API_KEY
+      if (!apiKey) {
+        throw new Error('ELEVENLABS_API_KEY environment variable is not set')
+      }
+
+      const text = args.sampleText || "Hello! This is a sample of my voice. I can help you create engaging voice-overs for your content."
+
+      const response = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${args.voiceId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: 'eleven_monolingual_v1',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+            },
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(
+          `ElevenLabs API error: ${response.status} ${response.statusText} - ${errorText}`
+        )
+      }
+
+      // Get audio as ArrayBuffer and convert to data URL for preview
+      const audioBuffer = await response.arrayBuffer()
+      const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' })
+      
+      // Store temporarily in Convex storage (can be cleaned up later)
+      const audioStorageId = await ctx.storage.store(audioBlob)
+      const audioUrl = await ctx.storage.getUrl(audioStorageId)
+      
+      if (!audioUrl) {
+        throw new Error('Failed to get audio file URL from storage')
+      }
+
+      return { audioUrl }
+    } catch (error) {
+      console.error('Voice sample generation error:', error)
+      throw new Error(
+        `Failed to generate voice sample: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  },
+})
+
