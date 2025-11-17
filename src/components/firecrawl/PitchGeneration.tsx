@@ -137,6 +137,33 @@ export function PitchGeneration({
           >
             Back
           </button>
+          {/* Proceed to Voice-Over Button */}
+          {generatedPitch && (editedPitch || generatedPitch) && (
+              <button
+                onClick={() => {
+                  const pitchText = editedPitch || generatedPitch
+                  const serviceName = selectedService?.name || 'Service'
+                  onProceed(pitchText, serviceName)
+                }}
+                className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex items-center gap-2"
+              >
+                <span>Generate Voice-Over</span>
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </button>
+          )}
+          
           <button
             onClick={onReset}
             className="rounded-lg border border-border bg-background px-5 py-2.5 text-sm font-medium text-card-foreground shadow-sm transition-all hover:bg-accent hover:text-accent-foreground hover:shadow-md"
@@ -203,9 +230,9 @@ export function PitchGeneration({
                       <div
                         key={index}
                         onClick={() => handleServiceClick(service)}
-                        className={`group relative rounded-lg border p-4 cursor-pointer transition-all duration-200 ${
+                        className={`w-80 group relative rounded-lg border p-4 cursor-pointer transition-all duration-200 m-1 ${
                           isSelected
-                            ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-2 shadow-md'
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-2 shadow-md m-2'
                             : 'border-border bg-background hover:border-primary/50 hover:bg-accent/30 hover:shadow-sm'
                         }`}
                       >
@@ -592,35 +619,6 @@ export function PitchGeneration({
                             )}
                           </button>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Proceed to Voice-Over Button */}
-                    {generatedPitch && (editedPitch || generatedPitch) && (
-                      <div className="flex justify-end pt-4">
-                        <button
-                          onClick={() => {
-                            const pitchText = editedPitch || generatedPitch
-                            const serviceName = selectedService?.name || 'Service'
-                            onProceed(pitchText, serviceName)
-                          }}
-                          className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex items-center gap-2"
-                        >
-                          <span>Generate Voice-Over</span>
-                          <svg
-                            className="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13 7l5 5m0 0l-5 5m5-5H6"
-                            />
-                          </svg>
-                        </button>
                       </div>
                     )}
                   </div>

@@ -14,6 +14,9 @@ type ExtractResultsProps = {
   results: ExtractResult[]
   onBack: () => void
   onReset: () => void
+  onAnalyze?: () => void
+  loading?: boolean
+  canAnalyze?: boolean
 }
 
 function getErrorType(error: string): { type: 'server' | 'client' | 'network' | 'unknown'; message: string } {
@@ -29,7 +32,7 @@ function getErrorType(error: string): { type: 'server' | 'client' | 'network' | 
   return { type: 'unknown', message: error }
 }
 
-export function ExtractResults({ results, onBack, onReset }: ExtractResultsProps) {
+export function ExtractResults({ results, onBack, onReset, onAnalyze, loading = false, canAnalyze = false }: ExtractResultsProps) {
   const [selectedResult, setSelectedResult] = useState<ExtractResult | null>(null)
   
   const successCount = results.filter(r => !r.error && r.markdown).length
@@ -67,6 +70,25 @@ export function ExtractResults({ results, onBack, onReset }: ExtractResultsProps
             >
               Back
             </button>
+            {canAnalyze && onAnalyze && (
+              <button
+                onClick={onAnalyze}
+                disabled={loading}
+                className="rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Analyzing...
+                  </span>
+                ) : (
+                  'Analyze Offerings'
+                )}
+              </button>
+            )}
             <button
               onClick={onReset}
               className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-all hover:bg-accent hover:shadow-md"

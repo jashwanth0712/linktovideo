@@ -14,7 +14,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
     { key: 'voiceover', label: 'Voice-Over', number: 6 },
   ]
 
-  const getStepStatus = (step: Step) => {
+  const getStepStatus = (step: { key: Step; label: string; number: number }) => {
     const stepOrder = ['branding', 'map', 'extract', 'analyze', 'pitch', 'voiceover']
     const currentIndex = stepOrder.indexOf(currentStep)
     const stepIndex = stepOrder.indexOf(step.key)
@@ -25,7 +25,7 @@ export function StepIndicator({ currentStep }: StepIndicatorProps) {
   }
 
   return (
-    <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2 pt-1">
+    <div className="mb-8 flex items-center gap-2 overflow-x-auto pb-2 p-1">
       {steps.map((step, index) => {
         const status = getStepStatus(step)
         const isActive = status === 'active'
