@@ -13,7 +13,7 @@ export const RemotionRoot: React.FC = () => {
       titleColor: "#000000",
       backgroundColor: "#FFFFFF",
       rating: 0,
-      gradientOption: "option-1" as const,
+      logo: "https://remotion.dev/img/logo.png", // Optional logo URL
       animationStyle: "scale" as const,
       duration: 2.0,
     },
@@ -22,7 +22,8 @@ export const RemotionRoot: React.FC = () => {
       titleColor: "#000000",
       backgroundColor: "#FFFFFF",
       rating: 0,
-      gradientOption: "option-1" as const,
+      logo: "https://remotion.dev/img/logo.png",
+      // logo field is optional - this animation doesn't have one
       animationStyle: "fadeIn" as const,
       duration: 2.0,
     },
@@ -50,6 +51,11 @@ export const RemotionRoot: React.FC = () => {
         //Arafat : this is where we define default props for the TextClip component
         defaultProps={{
           animations: defaultAnimations,
+          gradientOption: "option-1" as const,
+          // Option 1: 3 colors for gradient
+          option1Colors: ["#ff6b6b", "#6c5ce7", "#a29bfe"],
+          // Option 2: 2 colors for gradient
+          option2Colors: ["#00d2ff", "#3a7bd5"],
         }}
       />
     </>

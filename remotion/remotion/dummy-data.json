@@ -1,0 +1,50 @@
+{
+  "animations": [
+    {
+      "titleText": "Introducing Reelcat",
+      "titleColor": "#000000",
+      "backgroundColor": "#FFFFFF",
+      "rating": 0,
+      "logo": "https://remotion.dev/img/logo.png",
+      "animationStyle": "scale",
+      "duration": 2.0
+    },
+    {
+      "titleText": "An amazing mobile editor",
+      "titleColor": "#000000",
+      "backgroundColor": "#FFFFFF",
+      "rating": 0,
+      "animationStyle": "fadeIn",
+      "duration": 2.0
+    },
+    {
+      "titleText": "Create stunning videos",
+      "titleColor": "#FFFFFF",
+      "backgroundColor": "#1a1a1a",
+      "rating": 5,
+      "animationStyle": "slideIn",
+      "duration": 3.0
+    },
+    {
+      "titleText": "Edit like a pro",
+      "titleColor": "#FF6B6B",
+      "backgroundColor": "#2D3436",
+      "rating": 4,
+      "animationStyle": "changingWord",
+      "duration": 2.5
+    },
+    {
+      "titleText": "Download now",
+      "titleColor": "#00D2FF",
+      "backgroundColor": "#000000",
+      "rating": 5,
+      "animationStyle": "scale",
+      "duration": 1.5
+    }
+  ],
+  "gradientOption": "option-1",
+  "option1Colors": ["#ff6b6b", "#6c5ce7", "#a29bfe"],
+  "option2Colors": ["#00d2ff", "#3a7bd5"]
+}
+
+

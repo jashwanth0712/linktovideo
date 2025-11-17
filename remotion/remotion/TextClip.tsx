@@ -5,6 +5,7 @@ import {
   Sequence,
   useCurrentFrame,
   useVideoConfig,
+  Img,
 } from "remotion";
 import { Title } from "./TextClip/Title";
 import { z } from "zod";
@@ -18,23 +19,28 @@ const animationSchema = z.object({
   titleColor: zColor(),
   backgroundColor: zColor(),
   rating: z.number(),
-  // Background gradient option (hardcoded schemes)
-  // Available options: option-1, option-2
-  gradientOption: z.enum(["option-1", "option-2"]).default("option-1"),
+  // Optional logo URL - if provided, logo will be displayed on top
+  logo: z.string().url().or(z.literal("")).optional(),
   // Animation style to use
   animationStyle: z.enum(["scale", "fadeIn", "slideIn", "changingWord"]).default("scale"),
   // Duration in seconds (will be converted to frames)
   duration: z.number().default(2.0),
 });
 
-// Main schema - array of animations
+// Main schema - array of animations with gradient configuration
 export const textClipCompSchema = z.object({
   animations: z.array(animationSchema).min(1),
+  // Background gradient option - choose between option-1 or option-2
+  gradientOption: z.enum(["option-1", "option-2"]).default("option-1"),
+  // Colors for option-1: array of 2 or 3 colors for company branding
+  option1Colors: z.array(zColor()).min(2).max(3),
+  // Colors for option-2: array of 2 or 3 colors for company branding
+  option2Colors: z.array(zColor()).min(2).max(3),
 });
 
-// Helper function to create animated gradient based on option and frame
+// Helper function to create animated gradient based on colors and frame
 const getAnimatedGradient = (
-  option: "option-1" | "option-2",
+  colors: string[],
   frame: number,
   durationInFrames: number
 ): string => {
@@ -43,14 +49,51 @@ const getAnimatedGradient = (
   const progress = (frame % cycleDuration) / cycleDuration;
   const angle = progress * 360; // Rotating angle in degrees
   
-  if (option === "option-1") {
-    // Rotating linear gradient with 3 colors - creates a sweeping effect
-    return `linear-gradient(${angle}deg, #ff6b6b 0%, #6c5ce7 50%, #a29bfe 100%)`;
+  if (colors.length === 2) {
+    // Rotating linear gradient with 2 colors - creates a sweeping effect
+    return `linear-gradient(${angle}deg, ${colors[0]} 0%, ${colors[1]} 100%)`;
   } else {
-    // Rotating linear gradient with 3 colors - opposite rotation
-    const angle2 = angle + 180; // Opposite rotation
-    return `linear-gradient(${angle}deg, #00d2ff 0%, #3a7bd5 50%, #00f260 100%), linear-gradient(${angle2}deg, #00f260 0%, #3a7bd5 50%, #00d2ff 100%)`;
+    // Rotating linear gradient with 3 colors - creates a sweeping effect with middle color
+    return `linear-gradient(${angle}deg, ${colors[0]} 0%, ${colors[1]} 50%, ${colors[2]} 100%)`;
   }
+};
+
+// Logo component wrapper - displays logo on top and content below
+const LogoWrapper: React.FC<{
+  logoUrl?: string;
+  children: React.ReactNode;
+}> = ({ logoUrl, children }) => {
+  const containerStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    height: "100%",
+    gap: 60,
+  };
+
+  const logoStyle: React.CSSProperties = {
+    maxWidth: 400,
+    maxHeight: 200,
+    width: "auto",
+    height: "auto",
+    objectFit: "contain",
+  };
+
+  return (
+    <div style={containerStyle}>
+      {logoUrl?.trim() && (
+        <Img
+          src={logoUrl}
+          style={logoStyle}
+        />
+      )}
+      <div style={{ width: "100%" }}>
+        {children}
+      </div>
+    </div>
+  );
 };
 
 // Animation component for fade-in effect
@@ -58,7 +101,8 @@ const FadeInTitle: React.FC<{
   titleText: string;
   titleColor: string;
   durationInFrames: number;
-}> = ({ titleText, titleColor, durationInFrames }) => {
+  logoUrl?: string;
+}> = ({ titleText, titleColor, durationInFrames, logoUrl }) => {
   const frame = useCurrentFrame();
   const words = titleText.split(" ");
 
@@ -85,32 +129,34 @@ const FadeInTitle: React.FC<{
   const wordFadeDuration = durationInFrames / words.length;
 
   return (
-    <h1 style={title}>
-      {words.map((t, i) => {
-        const opacity = interpolate(
-          frame,
-          [i * wordDelay, i * wordDelay + wordFadeDuration],
-          [0, 1],
-          {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          }
-        );
+    <LogoWrapper logoUrl={logoUrl}>
+      <h1 style={title}>
+        {words.map((t, i) => {
+          const opacity = interpolate(
+            frame,
+            [i * wordDelay, i * wordDelay + wordFadeDuration],
+            [0, 1],
+            {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            }
+          );
 
-        return (
-          <span
-            key={t}
-            style={{
-              ...word,
-              color: titleColor,
-              opacity,
-            }}
-          >
-            {t}
-          </span>
-        );
-      })}
-    </h1>
+          return (
+            <span
+              key={t}
+              style={{
+                ...word,
+                color: titleColor,
+                opacity,
+              }}
+            >
+              {t}
+            </span>
+          );
+        })}
+      </h1>
+    </LogoWrapper>
   );
 };
 
@@ -119,7 +165,8 @@ const SlideInTitle: React.FC<{
   titleText: string;
   titleColor: string;
   durationInFrames: number;
-}> = ({ titleText, titleColor, durationInFrames }) => {
+  logoUrl?: string;
+}> = ({ titleText, titleColor, durationInFrames, logoUrl }) => {
   const frame = useCurrentFrame();
   const videoConfig = useVideoConfig();
   const words = titleText.split(" ");
@@ -147,42 +194,44 @@ const SlideInTitle: React.FC<{
   const wordFadeDuration = durationInFrames / words.length;
 
   return (
-    <h1 style={title}>
-      {words.map((t, i) => {
-        const adjustedFrame = frame - i * wordDelay;
-        const translateX = spring({
-          fps: videoConfig.fps,
-          frame: adjustedFrame,
-          config: {
-            damping: 200,
-          },
-        });
+    <LogoWrapper logoUrl={logoUrl}>
+      <h1 style={title}>
+        {words.map((t, i) => {
+          const adjustedFrame = frame - i * wordDelay;
+          const translateX = spring({
+            fps: videoConfig.fps,
+            frame: adjustedFrame,
+            config: {
+              damping: 200,
+            },
+          });
 
-        const opacity = interpolate(
-          adjustedFrame,
-          [0, wordFadeDuration],
-          [0, 1],
-          {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          }
-        );
+          const opacity = interpolate(
+            adjustedFrame,
+            [0, wordFadeDuration],
+            [0, 1],
+            {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            }
+          );
 
-        return (
-          <span
-            key={t}
-            style={{
-              ...word,
-              color: titleColor,
-              transform: `translateX(${(1 - translateX) * 200}px)`,
-              opacity,
-            }}
-          >
-            {t}
-          </span>
-        );
-      })}
-    </h1>
+          return (
+            <span
+              key={t}
+              style={{
+                ...word,
+                color: titleColor,
+                transform: `translateX(${(1 - translateX) * 200}px)`,
+                opacity,
+              }}
+            >
+              {t}
+            </span>
+          );
+        })}
+      </h1>
+    </LogoWrapper>
   );
 };
 
@@ -191,7 +240,8 @@ const ChangingLastWordTitle: React.FC<{
   titleText: string;
   titleColor: string;
   durationInFrames: number;
-}> = ({ titleText, titleColor, durationInFrames }) => {
+  logoUrl?: string;
+}> = ({ titleText, titleColor, durationInFrames, logoUrl }) => {
   const frame = useCurrentFrame();
   const words = titleText.split(" ");
 
@@ -256,36 +306,56 @@ const ChangingLastWordTitle: React.FC<{
   );
 
   return (
-    <h1 style={title}>
-      {words.slice(0, -1).map((t, i) => (
+    <LogoWrapper logoUrl={logoUrl}>
+      <h1 style={title}>
+        {words.slice(0, -1).map((t, i) => (
+          <span
+            key={`${t}-${i}`}
+            style={{
+              ...word,
+              color: titleColor,
+            }}
+          >
+            {t}
+          </span>
+        ))}
         <span
-          key={`${t}-${i}`}
           style={{
             ...word,
             color: titleColor,
+            opacity,
           }}
         >
-          {t}
+          {currentLastWord}
         </span>
-      ))}
-      <span
-        style={{
-          ...word,
-          color: titleColor,
-          opacity,
-        }}
-      >
-        {currentLastWord}
-      </span>
-    </h1>
+      </h1>
+    </LogoWrapper>
   );
 };
 
 export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
   animations,
+  gradientOption,
+  option1Colors,
+  option2Colors,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  
+  // Calculate total duration for the entire video
+  const totalDurationInFrames = Math.round(
+    animations.reduce((sum, anim) => sum + anim.duration, 0) * fps
+  );
+  
+  // Get the selected gradient colors based on option
+  const selectedColors = gradientOption === "option-1" ? option1Colors : option2Colors;
+  
+  // Get animated background gradient for the entire video
+  const backgroundGradient = getAnimatedGradient(
+    selectedColors,
+    frame,
+    totalDurationInFrames
+  );
 
   // Convert duration from seconds to frames for each animation
   const animationsWithFrames = animations.map((anim) => ({
@@ -306,7 +376,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
 
   // Render animation component based on style
   const renderAnimation = (anim: typeof animationsWithStart[0]) => {
-    const { titleText, titleColor, animationStyle, durationInFrames: animDuration } = anim;
+    const { titleText, titleColor, animationStyle, durationInFrames: animDuration, logo } = anim;
 
     switch (animationStyle) {
       case "scale":
@@ -315,6 +385,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
             titleText={titleText} 
             titleColor={titleColor} 
             durationInFrames={animDuration}
+            logoUrl={logo}
           />
         );
       case "fadeIn":
@@ -323,6 +394,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
             titleText={titleText} 
             titleColor={titleColor} 
             durationInFrames={animDuration}
+            logoUrl={logo}
           />
         );
       case "slideIn":
@@ -331,6 +403,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
             titleText={titleText} 
             titleColor={titleColor} 
             durationInFrames={animDuration}
+            logoUrl={logo}
           />
         );
       case "changingWord":
@@ -339,6 +412,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
             titleText={titleText} 
             titleColor={titleColor} 
             durationInFrames={animDuration}
+            logoUrl={logo}
           />
         );
       default:
@@ -347,6 +421,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
             titleText={titleText} 
             titleColor={titleColor} 
             durationInFrames={animDuration}
+            logoUrl={logo}
           />
         );
     }
@@ -354,20 +429,17 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
 
   // A <AbsoluteFill> is just a absolutely positioned <div>!
   return (
-    <AbsoluteFill>
+    <AbsoluteFill
+      style={{
+        backgroundImage: backgroundGradient,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+      }}
+    >
       {animationsWithStart.map((anim, index) => {
         // Calculate relative frame for this animation
         const relativeFrame = frame - anim.startFrame;
         const isActive = relativeFrame >= 0 && relativeFrame < anim.durationInFrames;
-        
-        // Get animated background gradient based on selected option for this animation
-        const backgroundGradient = isActive
-          ? getAnimatedGradient(
-              anim.gradientOption || "option-1",
-              relativeFrame,
-              anim.durationInFrames
-            )
-          : undefined;
 
         // Fade out at the end of each animation
         const opacity = interpolate(
@@ -388,9 +460,6 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
           >
             <AbsoluteFill
               style={{
-                backgroundImage: backgroundGradient,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
                 opacity: isActive ? opacity : 0,
               }}
             >
