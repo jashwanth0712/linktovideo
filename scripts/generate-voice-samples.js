@@ -19,10 +19,10 @@ const __dirname = path.dirname(__filename)
 // Voice configurations matching the app with custom sample texts
 const voices = [
   { 
-    id: '21m00Tcm4TlvDq8ikWAM', 
-    name: 'Rachel', 
+    id: 'XrExE9yKIg1WjnnlVkGX', 
+    name: 'Matilda', 
     description: 'Professional Female',
-    sampleText: "Welcome to professional voice-over excellence. I'm Rachel, and I bring clarity, confidence, and a warm, engaging tone to every project. Whether you need corporate presentations, educational content, or compelling narratives, my voice delivers professionalism with a human touch. Let's create something remarkable together."
+    sampleText: "Welcome to professional voice-over excellence. I'm Matilda, and I bring clarity, confidence, and a warm, engaging tone to every project. Whether you need corporate presentations, educational content, or compelling narratives, my voice delivers professionalism with a human touch. Let's create something remarkable together."
   },
   { 
     id: 'AZnzlk1XvdvUeBnXmlld', 

@@ -6,8 +6,23 @@ import {
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-interface JobData {
+// Animation data structure matching the Remotion schema
+interface AnimationData {
   titleText: string;
+  titleColor: string;
+  backgroundColor: string;
+  rating: number;
+  logo?: string;
+  animationStyle: "scale" | "fadeIn" | "slideIn" | "changingWord";
+  duration: number;
+}
+
+interface JobData {
+  animations: AnimationData[];
+  gradientOption: "option-1" | "option-2";
+  option1Colors: string[];
+  option2Colors: string[];
+  audioUrl?: string;
 }
 
 type JobState =
@@ -64,7 +79,11 @@ export const makeRenderQueue = ({
 
     try {
       const inputProps = {
-        titleText: job.data.titleText,
+        animations: job.data.animations,
+        gradientOption: job.data.gradientOption,
+        option1Colors: job.data.option1Colors,
+        option2Colors: job.data.option2Colors,
+        ...(job.data.audioUrl && { audioUrl: job.data.audioUrl }),
       };
 
       const composition = await selectComposition({

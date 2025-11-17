@@ -6,6 +6,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
   Img,
+  Audio,
 } from "remotion";
 import { Title } from "./TextClip/Title";
 import { z } from "zod";
@@ -36,6 +37,8 @@ export const textClipCompSchema = z.object({
   option1Colors: z.array(zColor()).min(2).max(3),
   // Colors for option-2: array of 2 or 3 colors for company branding
   option2Colors: z.array(zColor()).min(2).max(3),
+  // Optional audio URL - if provided, audio will be played with the video
+  audioUrl: z.string().url().optional(),
 });
 
 // Helper function to create animated gradient based on colors and frame
@@ -338,6 +341,7 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
   gradientOption,
   option1Colors,
   option2Colors,
+  audioUrl,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -436,6 +440,10 @@ export const TextClip: React.FC<z.infer<typeof textClipCompSchema>> = ({
         backgroundPosition: "center",
       }}
     >
+      {/* Audio track - plays throughout the video if provided */}
+      {audioUrl && (
+        <Audio src={audioUrl} />
+      )}
       {animationsWithStart.map((anim, index) => {
         // Calculate relative frame for this animation
         const relativeFrame = frame - anim.startFrame;

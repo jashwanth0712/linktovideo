@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useAction } from 'convex/react'
 import { api } from '../../../convex/_generated/api'
 import type { Id } from '../../../convex/_generated/dataModel'
@@ -42,19 +42,41 @@ export function VoiceOverGeneration({
   const [voiceOverId, setVoiceOverId] = useState<Id<'voiceOvers'> | null>(null)
   const [playingBGM, setPlayingBGM] = useState<string | null>(null)
   const [playingVoice, setPlayingVoice] = useState<string | null>(null)
+  const [isGeneratingSteps, setIsGeneratingSteps] = useState(false)
+  const [videoSteps, setVideoSteps] = useState<{
+    animations: Array<{
+      titleText: string
+      titleColor: string
+      backgroundColor: string
+      rating: number
+      logo?: string
+      animationStyle: "scale" | "fadeIn" | "slideIn" | "changingWord"
+      duration: number
+    }>
+    gradientOption: "option-1" | "option-2"
+    option1Colors: string[]
+    option2Colors: string[]
+  } | null>(null)
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false)
+  const [videoJobId, setVideoJobId] = useState<string | null>(null)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [videoStatus, setVideoStatus] = useState<'queued' | 'in-progress' | 'completed' | 'failed' | null>(null)
+  const [videoProgress, setVideoProgress] = useState<number>(0)
   const audioRef = useRef<HTMLAudioElement>(null)
   const mixedAudioRef = useRef<HTMLAudioElement>(null)
   const bgmPreviewRef = useRef<HTMLAudioElement>(null)
   const voiceSampleRef = useRef<HTMLAudioElement>(null)
+  const videoStatusIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // @ts-expect-error - generateVoiceOver will be available after Convex regenerates types
   const generateVoiceOver = useAction(api.myFunctions.generateVoiceOver)
   const generateMixedAudioUploadUrl = useAction(api.myFunctions.generateMixedAudioUploadUrl)
   const saveMixedAudioMetadata = useAction(api.myFunctions.saveMixedAudioMetadata)
+  const generateVideoSteps = useAction(api.myFunctions.generateVideoSteps)
 
   // Popular ElevenLabs voices with sample file paths
   const voices = [
-    { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel', description: 'Professional Female', sampleFile: '/voice-samples/21m00Tcm4TlvDq8ikWAM.mp3' },
+    { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda', description: 'Professional Female', sampleFile: '/voice-samples/21m00Tcm4TlvDq8ikWAM.mp3' },
     { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi', description: 'Strong Female', sampleFile: '/voice-samples/AZnzlk1XvdvUeBnXmlld.mp3' },
     { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella', description: 'Soft Female', sampleFile: '/voice-samples/EXAVITQu4vr4xnSDxMaL.mp3' },
     { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni', description: 'Professional Male', sampleFile: '/voice-samples/ErXwobaYiN019PkySvjV.mp3' },
@@ -202,6 +224,9 @@ export function VoiceOverGeneration({
       })
       
       setMixedAudioUrl(result.mixedAudioUrl)
+      
+      // After mixing, automatically generate video steps
+      await handleGenerateVideoSteps()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to mix audio with background music')
       console.error('Audio mixing error:', err)
@@ -209,6 +234,130 @@ export function VoiceOverGeneration({
       setIsMixing(false)
     }
   }
+
+  // Function to generate video steps using LLM
+  const handleGenerateVideoSteps = async () => {
+    if (!pitchText.trim()) {
+      setError('No pitch text available')
+      return
+    }
+
+    setIsGeneratingSteps(true)
+    setError(null)
+
+    try {
+      // Get audio duration if available
+      let audioDuration: number | undefined
+      if (mixedAudioRef.current) {
+        const duration = mixedAudioRef.current.duration
+        if (!isNaN(duration) && isFinite(duration)) {
+          audioDuration = duration
+        }
+      }
+
+      const result = await generateVideoSteps({
+        pitchText,
+        serviceName,
+        audioDurationSeconds: audioDuration,
+      })
+
+      setVideoSteps(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate video steps')
+      console.error('Video steps generation error:', err)
+    } finally {
+      setIsGeneratingSteps(false)
+    }
+  }
+
+  // Function to generate video using Remotion server
+  const handleGenerateVideo = async () => {
+    if (!mixedAudioUrl || !videoSteps) {
+      setError('Please ensure audio is mixed and video steps are generated')
+      return
+    }
+
+    setIsGeneratingVideo(true)
+    setError(null)
+    setVideoStatus('queued')
+    setVideoProgress(0)
+
+    try {
+      const REMOTION_SERVER_URL = process.env.VITE_REMOTION_SERVER_URL || 'http://localhost:5000'
+      
+      // Create render job with audio URL
+      const response = await fetch(`${REMOTION_SERVER_URL}/renders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...videoSteps,
+          audioUrl: mixedAudioUrl,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to create video render job')
+      }
+
+      const { jobId } = await response.json()
+      setVideoJobId(jobId) // Store jobId for potential future use (cancellation, etc.)
+
+      // Poll for job status
+      const pollStatus = async () => {
+        const statusResponse = await fetch(`${REMOTION_SERVER_URL}/renders/${jobId}`)
+        if (!statusResponse.ok) {
+          throw new Error('Failed to get job status')
+        }
+
+        const job = await statusResponse.json()
+
+        if (job.status === 'completed') {
+          setVideoStatus('completed')
+          setVideoUrl(job.videoUrl)
+          setVideoProgress(100)
+          if (videoStatusIntervalRef.current) {
+            clearInterval(videoStatusIntervalRef.current)
+            videoStatusIntervalRef.current = null
+          }
+        } else if (job.status === 'failed') {
+          setVideoStatus('failed')
+          setError(job.error?.message || 'Video generation failed')
+          if (videoStatusIntervalRef.current) {
+            clearInterval(videoStatusIntervalRef.current)
+            videoStatusIntervalRef.current = null
+          }
+        } else if (job.status === 'in-progress') {
+          setVideoStatus('in-progress')
+          setVideoProgress(job.progress || 0)
+        }
+      }
+
+      // Poll every 2 seconds
+      videoStatusIntervalRef.current = setInterval(pollStatus, 2000)
+      await pollStatus() // Initial poll
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate video')
+      setVideoStatus('failed')
+      if (videoStatusIntervalRef.current) {
+        clearInterval(videoStatusIntervalRef.current)
+        videoStatusIntervalRef.current = null
+      }
+    } finally {
+      setIsGeneratingVideo(false)
+    }
+  }
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (videoStatusIntervalRef.current) {
+        clearInterval(videoStatusIntervalRef.current)
+      }
+    }
+  }, [])
 
   // Helper function to convert AudioBuffer to WAV Blob
   function audioBufferToWav(buffer: AudioBuffer): Blob {
@@ -281,6 +430,42 @@ export function VoiceOverGeneration({
       URL.revokeObjectURL(url)
     } catch (err) {
       console.error('Failed to download subtitles:', err)
+    }
+  }
+
+  const handleDownloadVideo = () => {
+    if (!videoUrl) return
+
+    const link = document.createElement('a')
+    link.href = videoUrl
+    link.download = `${serviceName.replace(/\s+/g, '_')}_video.mp4`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const handleShareVideo = async () => {
+    if (!videoUrl) return
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${serviceName} Video`,
+          text: `Check out this video for ${serviceName}`,
+          url: videoUrl,
+        })
+      } catch (err) {
+        // User cancelled or error occurred
+        console.error('Error sharing:', err)
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(videoUrl)
+        alert('Video URL copied to clipboard!')
+      } catch (err) {
+        console.error('Failed to copy URL:', err)
+      }
     }
   }
 
@@ -865,6 +1050,240 @@ export function VoiceOverGeneration({
                   <p className="text-xs text-muted-foreground mt-2">
                     💡 This is the final audio with background music mixed at {Math.round(bgmVolume * 100)}% volume
                   </p>
+                </div>
+              )}
+
+              {/* Video Steps Configuration */}
+              {isGeneratingSteps && (
+                <div className="rounded-xl border border-border bg-card p-6 shadow-lg">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="h-5 w-5 text-primary animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      />
+                    </svg>
+                    <p className="text-sm text-card-foreground">Generating video steps...</p>
+                  </div>
+                </div>
+              )}
+
+              {videoSteps && !isGeneratingSteps && (
+                <div className="rounded-xl border border-primary/50 bg-card p-6 shadow-lg ring-2 ring-primary/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+                      <svg
+                        className="h-5 w-5 text-primary"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Video Configuration
+                    </h3>
+                  </div>
+                  
+                  {/* Minimalistic Configuration Display */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-medium text-card-foreground">Animations:</span>
+                      <span>{videoSteps.animations.length} segments</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-medium text-card-foreground">Gradient:</span>
+                      <span className="capitalize">{videoSteps.gradientOption.replace('option-', 'Option ')}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span className="font-medium text-card-foreground">Total Duration:</span>
+                      <span>{videoSteps.animations.reduce((sum, anim) => sum + anim.duration, 0).toFixed(1)}s</span>
+                    </div>
+                    
+                    {/* Animation Preview List */}
+                    <div className="mt-4 space-y-2 max-h-[200px] overflow-y-auto">
+                      {videoSteps.animations.map((anim, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2 rounded-lg bg-muted/30 border border-border/50"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-card-foreground truncate">
+                              {anim.titleText}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-xs text-muted-foreground capitalize">
+                                {anim.animationStyle}
+                              </span>
+                              <span className="text-xs text-muted-foreground">•</span>
+                              <span className="text-xs text-muted-foreground">
+                                {anim.duration}s
+                              </span>
+                            </div>
+                          </div>
+                          <div
+                            className="w-4 h-4 rounded border border-border/50 ml-2 flex-shrink-0"
+                            style={{ backgroundColor: anim.titleColor }}
+                            title={`Text color: ${anim.titleColor}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generate Video Button */}
+                  <button
+                    onClick={handleGenerateVideo}
+                    disabled={isGeneratingVideo || !mixedAudioUrl}
+                    className="w-full mt-4 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground shadow-lg transition-all hover:bg-primary/90 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {isGeneratingVideo ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg
+                          className="h-4 w-4 animate-spin"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          />
+                        </svg>
+                        {videoStatus === 'queued' && 'Queued...'}
+                        {videoStatus === 'in-progress' && `Generating... ${Math.round(videoProgress)}%`}
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg
+                          className="h-4 w-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                          />
+                        </svg>
+                        Generate Video
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Progress Bar */}
+                  {isGeneratingVideo && videoStatus === 'in-progress' && (
+                    <div className="mt-4">
+                      <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                          className="bg-primary h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${videoProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Video Result */}
+              {videoUrl && videoStatus === 'completed' && (
+                <div className="rounded-xl border border-primary/50 bg-card p-6 shadow-lg ring-2 ring-primary/20">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-card-foreground flex items-center gap-2">
+                      <svg
+                        className="h-5 w-5 text-primary"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Generated Video
+                    </h3>
+                  </div>
+                  
+                  {/* Video Player */}
+                  <video
+                    src={videoUrl}
+                    controls
+                    className="w-full rounded-lg mb-4"
+                  >
+                    Your browser does not support the video element.
+                  </video>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleDownloadVideo}
+                      className="flex-1 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-card-foreground hover:bg-accent transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      Download
+                    </button>
+                    <button
+                      onClick={handleShareVideo}
+                      className="flex-1 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-card-foreground hover:bg-accent transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg
+                        className="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
+                        />
+                      </svg>
+                      Share
+                    </button>
+                  </div>
                 </div>
               )}
 

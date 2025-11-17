@@ -116,7 +116,7 @@ export const mapWebsite = action({
       },
       body: JSON.stringify({
         url: args.url,
-        limit: args.limit || 20,
+        limit: args.limit || 25,
         sitemap: 'include',
       }),
     })
@@ -134,11 +134,44 @@ export const mapWebsite = action({
       throw new Error(`Firecrawl mapping failed: ${result.error || 'Unknown error'}`)
     }
 
-    const links = (result.links || []).map((link: any) => ({
+    let links = (result.links || []).map((link: any) => ({
       url: link.url,
       title: link.title || undefined,
       description: link.description || undefined,
     }))
+
+    // Ensure that the input home domain is always included with title "home" and description "start page"
+    const normalizedHomeUrl = args.url.endsWith("/")
+      ? args.url
+      : args.url + "/"
+
+    // Check exact match or either version (with/without trailing slash)
+    let homeLink = links.find(
+      (l: { url: string; title?: string; description?: string }) =>
+        l.url === args.url ||
+        l.url === normalizedHomeUrl
+    )
+
+    if (!homeLink) {
+      links = [
+        {
+          url: args.url,
+          title: "home",
+          description: "start page",
+        },
+        ...links,
+      ]
+    } else {
+      links = links.map((link: { url: string; title?: string; description?: string }) =>
+        (link.url === args.url || link.url === normalizedHomeUrl)
+          ? {
+              ...link,
+              title: "home",
+              description: "start page",
+            }
+          : link
+      )
+    }
 
     // Save to database
     const domainId = await ctx.runMutation(internal.mutations.saveDomain, {
@@ -490,7 +523,7 @@ function formatSRTTime(ms: number): string {
 
 // Voice name mapping
 const voiceNames: Record<string, string> = {
-  '21m00Tcm4TlvDq8ikWAM': 'Rachel',
+  'XrExE9yKIg1WjnnlVkGX': 'Matilda',
   'AZnzlk1XvdvUeBnXmlld': 'Domi',
   'EXAVITQu4vr4xnSDxMaL': 'Bella',
   'ErXwobaYiN019PkySvjV': 'Antoni',
@@ -528,7 +561,7 @@ export const generateVoiceOver = action({
       }
 
       // Default to a professional voice if not specified
-      const voiceId = args.voiceId || '21m00Tcm4TlvDq8ikWAM' // Rachel - professional female voice
+      const voiceId = args.voiceId || 'XrExE9yKIg1WjnnlVkGX' // Rachel - professional female voice
       const voiceName = voiceNames[voiceId] || 'Unknown'
 
       const response = await fetch(
@@ -736,6 +769,123 @@ export const generateVoiceSample = action({
       console.error('Voice sample generation error:', error)
       throw new Error(
         `Failed to generate voice sample: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  },
+})
+
+// AI action - generate video animation steps based on pitch text
+// This predicts the animation sequence for the Remotion video composition
+export const generateVideoSteps = action({
+  args: {
+    pitchText: v.string(),
+    serviceName: v.string(),
+    audioDurationSeconds: v.optional(v.number()),
+  },
+  returns: v.object({
+    animations: v.array(
+      v.object({
+        titleText: v.string(),
+        titleColor: v.string(),
+        backgroundColor: v.string(),
+        rating: v.number(),
+        logo: v.optional(v.string()),
+        animationStyle: v.union(
+          v.literal("scale"),
+          v.literal("fadeIn"),
+          v.literal("slideIn"),
+          v.literal("changingWord")
+        ),
+        duration: v.number(),
+      })
+    ),
+    gradientOption: v.union(v.literal("option-1"), v.literal("option-2")),
+    option1Colors: v.array(v.string()),
+    option2Colors: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    try {
+      // Initialize the agent
+      const agent = new Agent(components.agent, {
+        name: "video-steps-generator",
+        languageModel: openai("gpt-4o-mini"),
+        instructions: "You are an AI assistant that analyzes voice-over pitch scripts and generates video animation sequences. Create engaging, dynamic animations that match the content and pacing of the script.",
+      })
+
+      // Create a thread for this generation
+      const { thread } = await agent.createThread(ctx, {
+        title: "Generate Video Steps",
+        summary: "Create animation sequence for video based on pitch script",
+      })
+
+      const prompt = `
+Analyze the following voice-over pitch script and generate a sequence of video animations that will accompany it.
+
+Pitch Script:
+${args.pitchText}
+
+Service Name: ${args.serviceName}
+${args.audioDurationSeconds ? `Audio Duration: ${args.audioDurationSeconds} seconds` : ''}
+
+Generate a sequence of animations that:
+1. Break down the pitch into logical segments (typically 3-6 animations)
+2. Each animation should have a clear message or key point
+3. Match the animation style to the content (scale for introductions, fadeIn for features, slideIn for benefits, changingWord for dynamic content)
+4. Use appropriate durations (1.5-3 seconds per animation) that match the pacing
+5. Choose colors that are professional and match the service/brand
+6. Include a logo URL if relevant (or leave empty string)
+
+The total duration of all animations should approximately match the audio duration if provided, or be reasonable for the content length.
+
+Return a JSON object with:
+- animations: array of animation objects
+- gradientOption: "option-1" or "option-2" for background gradient
+- option1Colors: array of 2-3 hex color strings for gradient option 1
+- option2Colors: array of 2-3 hex color strings for gradient option 2
+`
+
+      // Define the schema using zod
+      const videoStepsSchema = z.object({
+        animations: z.array(
+          z.object({
+            titleText: z.string().describe("The text to display in this animation segment"),
+            titleColor: z.string().describe("Hex color for the title text (e.g., '#000000' or '#FFFFFF')"),
+            backgroundColor: z.string().describe("Hex color for background (used for reference, gradient will be applied)"),
+            rating: z.number().min(0).max(5).describe("Rating value (0-5), typically 0 unless rating is mentioned"),
+            logo: z.string().url().or(z.literal("")).optional().describe("Optional logo URL, or empty string if no logo"),
+            animationStyle: z.enum(["scale", "fadeIn", "slideIn", "changingWord"]).describe("Animation style for this segment"),
+            duration: z.number().positive().describe("Duration in seconds (typically 1.5-3.0)"),
+          })
+        ).min(1).describe("Array of animation segments"),
+        gradientOption: z.enum(["option-1", "option-2"]).describe("Which gradient option to use"),
+        option1Colors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).min(2).max(3).describe("2-3 hex colors for gradient option 1"),
+        option2Colors: z.array(z.string().regex(/^#[0-9A-Fa-f]{6}$/)).min(2).max(3).describe("2-3 hex colors for gradient option 2"),
+      })
+
+      // Use thread.generateObject with zod schema
+      const result = await thread.generateObject({
+        prompt,
+        schema: videoStepsSchema,
+      })
+
+      return result.object as {
+        animations: Array<{
+          titleText: string
+          titleColor: string
+          backgroundColor: string
+          rating: number
+          logo?: string
+          animationStyle: "scale" | "fadeIn" | "slideIn" | "changingWord"
+          duration: number
+        }>
+        gradientOption: "option-1" | "option-2"
+        option1Colors: string[]
+        option2Colors: string[]
+      }
+    } catch (error) {
+      console.error("Video steps generation error:", error)
+      throw new Error(
+        `Failed to generate video steps: ${error instanceof Error ? error.message : "Unknown error"}`
       )
     }
   },
