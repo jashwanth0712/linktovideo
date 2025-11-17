@@ -303,3 +303,25 @@ export const saveVoiceOver = internalMutation({
   },
 })
 
+// Mutation to update voice-over with mixed audio
+export const updateVoiceOverWithMixedAudio = internalMutation({
+  args: {
+    voiceOverId: v.id("voiceOvers"),
+    mixedAudioStorageId: v.id("_storage"),
+    mixedAudioUrl: v.string(),
+    bgmFileName: v.string(),
+    bgmVolume: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.voiceOverId, {
+      mixedAudioStorageId: args.mixedAudioStorageId,
+      mixedAudioUrl: args.mixedAudioUrl,
+      bgmFileName: args.bgmFileName,
+      bgmVolume: args.bgmVolume,
+    })
+
+    return null
+  },
+})
+

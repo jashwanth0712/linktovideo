@@ -117,6 +117,11 @@ export default defineSchema({
     subtitlesUrl: v.optional(v.string()), // URL to access the subtitles file
     voiceId: v.string(), // ElevenLabs voice ID used
     voiceName: v.string(), // Name of the voice used
+    // Mixed audio with background music
+    mixedAudioStorageId: v.optional(v.id("_storage")), // Storage ID for mixed audio (voice + BGM)
+    mixedAudioUrl: v.optional(v.string()), // URL to access the mixed audio file
+    bgmFileName: v.optional(v.string()), // Background music file name used
+    bgmVolume: v.optional(v.number()), // BGM volume level (0-1)
     createdAt: v.number(), // Timestamp when voice-over was created
   })
     .index("by_domain", ["domainId"])
